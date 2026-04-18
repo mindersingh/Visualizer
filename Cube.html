@@ -1,379 +1,526 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cube</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Minder Singh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@300&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { overflow: hidden; background: #000; }
-canvas { display: block; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+canvas { position: fixed; top: 0; left: 0; }
+#main  { z-index: 1; }
+#text  { z-index: 2; pointer-events: none; }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-<script> 
+<canvas id="main"></canvas>
+<canvas id="text"></canvas>
+<script>
 
-var canvas = document.getElementById(‘c’);
-var ctx    = canvas.getContext(‘2d’, { alpha: false });
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
 
-function getDPR() { return window.devicePixelRatio || 1; }
-function resize() {
-var DPR = getDPR();
-canvas.width        = Math.floor(window.innerWidth  * DPR);
-canvas.height       = Math.floor(window.innerHeight * DPR);
-canvas.style.width  = window.innerWidth  + ‘px’;
-canvas.style.height = window.innerHeight + ‘px’;
-}
-resize();
-window.addEventListener(‘resize’, resize);
+var FOV          = 1800;
+var INNER_SPEED  = 0.014;
+var MIRROR_LAYERS = 5;
+var EXPLODE_DUR  = 1.8;
+
+var SCHEMES = [
+  [[255,255,255],[255,255,  0],[255,128,  0],[255,  0,  0]],
+  [[  0,255,255],[  0,128,255],[128,  0,255],[255,  0,200]],
+  [[200,255,  0],[  0,255,100],[  0,200,180],[  0, 80,255]],
+  [[255,  0,128],[255,100,  0],[255,220,  0],[255,255,255]],
+  [[255, 20,  0],[220,  0,180],[120,  0,255],[ 20,  0,180]],
+  [[255,200,  0],[160,255,  0],[  0,255,220],[  0,180,255]]
+];
 
 var BASE_VERTS = [
-[-1,-1,-1], [ 1,-1,-1], [ 1, 1,-1], [-1, 1,-1],
-[-1,-1, 1], [ 1,-1, 1], [ 1, 1, 1], [-1, 1, 1]
+  [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
+  [-1,-1, 1],[1,-1, 1],[1,1, 1],[-1,1, 1]
 ];
 var EDGES = [
-[0,1],[1,2],[2,3],[3,0],
-[4,5],[5,6],[6,7],[7,4],
-[0,4],[1,5],[2,6],[3,7]
+  [0,1],[1,2],[2,3],[3,0],
+  [4,5],[5,6],[6,7],[7,4],
+  [0,4],[1,5],[2,6],[3,7]
 ];
 
-var FOV = 1800;
+// ─── STATE ───────────────────────────────────────────────────────────────────
+
+var W, H, DPR;
 var NUM = 25;
-var INNER_SPEED = 0.014;
+var anglesY=[], anglesX=[], anglesZ=[];
+var speedY=[],  speedX=[],  speedZ=[];
+var dirY=[],    dirX=[],    dirZ=[];
+var seeds=[];
+var currentScheme=0, nextScheme=1, schemeBlend=0;
+var t=0, bgT=0, hueT=0;
+var explodeT=0, syncBlend=0;
 
-// ── PER-CUBE STATE ────────────────────────────────────
-var anglesY = [], anglesX = [], anglesZ = [];
-var speedY  = [], speedX  = [], speedZ  = [];
-var dirY    = [], dirX    = [], dirZ    = [];
-var seeds   = [];
+// ─── CANVAS SETUP ────────────────────────────────────────────────────────────
 
-var k;
-for (k = 0; k < NUM; k++) {
-// Evenly space initial Y angles across full circle
-anglesY.push((k / NUM) * Math.PI * 2);
-// Evenly space X and Z too so all cubes start at distinct orientations
-anglesX.push((k / NUM) * Math.PI * 2 * 0.618);  // golden ratio offset
-anglesZ.push((k / NUM) * Math.PI * 2 * 0.382);
-speedY.push(INNER_SPEED * Math.pow(0.99, k));
-speedX.push(INNER_SPEED * Math.pow(0.99, k) * (0.4 + Math.random() * 0.5));
-speedZ.push(INNER_SPEED * Math.pow(0.99, k) * (0.2 + Math.random() * 0.4));
-dirY.push(k % 2 === 0 ? 1 : -1);
-dirX.push(k % 2 === 0 ? -1 : 1);
-dirZ.push(k % 3 === 0 ? 1 : k % 3 === 1 ? -1 : 1);
-seeds.push(Math.random() * 100);
+var mainCanvas = document.getElementById('main');
+var ctx        = mainCanvas.getContext('2d');
+var textCanvas = document.getElementById('text');
+var tCtx       = textCanvas.getContext('2d');
+
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  W   = window.innerWidth;
+  H   = window.innerHeight;
+  [mainCanvas, textCanvas].forEach(function(c) {
+    c.width        = Math.floor(W * DPR);
+    c.height       = Math.floor(H * DPR);
+    c.style.width  = W + 'px';
+    c.style.height = H + 'px';
+  });
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─── CUBE INIT ───────────────────────────────────────────────────────────────
+
+function initCubes(n) {
+  NUM = n;
+  anglesY=[]; anglesX=[]; anglesZ=[];
+  speedY=[];  speedX=[];  speedZ=[];
+  dirY=[];    dirX=[];    dirZ=[];
+  seeds=[];
+  for (var j=0; j<NUM; j++) {
+    anglesY.push((j/NUM) * Math.PI * 2);
+    anglesX.push((j/NUM) * Math.PI * 2 * 0.618);
+    anglesZ.push((j/NUM) * Math.PI * 2 * 0.382);
+    speedY.push(INNER_SPEED * Math.pow(0.99, j));
+    speedX.push(INNER_SPEED * Math.pow(0.99, j) * (0.4 + Math.random()*0.5));
+    speedZ.push(INNER_SPEED * Math.pow(0.99, j) * (0.2 + Math.random()*0.4));
+    dirY.push(j%2 ? -1 : 1);
+    dirX.push(j%2 ?  1 :-1);
+    dirZ.push(j%3===0 ? 1 : j%3===1 ? -1 : 1);
+    seeds.push(Math.random() * 100);
+  }
+}
+initCubes(25);
+
+// ─── MATH ────────────────────────────────────────────────────────────────────
+
+function lerp(a,b,f)  { return a+(b-a)*f; }
+function clamp(v,a,b) { return Math.max(a,Math.min(b,v)); }
+function easeIO(x)    { return x<0.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2; }
+
+function lerpRGB(a,b,f) {
+  return [Math.round(a[0]+(b[0]-a[0])*f), Math.round(a[1]+(b[1]-a[1])*f), Math.round(a[2]+(b[2]-a[2])*f)];
 }
 
-// ── COLOR SCHEMES ─────────────────────────────────────
-var SCHEMES = [
-[[255,255,255],[255,255,0],[255,128,0],[255,0,0]],
-[[0,255,255],[0,128,255],[128,0,255],[255,0,200]],
-[[200,255,0],[0,255,100],[0,200,180],[0,80,255]],
-[[255,0,128],[255,100,0],[255,220,0],[255,255,255]],
-[[255,20,0],[220,0,180],[120,0,255],[20,0,180]],
-[[255,200,0],[160,255,0],[0,255,220],[0,180,255]],
-];
-
-var currentScheme = 0;
-var nextScheme    = 1;
-var schemeBlend   = 0;
-
-function lerpRGB(a, b, f) {
-return [Math.round(a[0]+(b[0]-a[0])*f), Math.round(a[1]+(b[1]-a[1])*f), Math.round(a[2]+(b[2]-a[2])*f)];
-}
-function sampleScheme(scheme, tc) {
-var stops = SCHEMES[scheme];
-var seg   = tc * (stops.length - 1);
-var idx   = Math.min(Math.floor(seg), stops.length - 2);
-return lerpRGB(stops[idx], stops[idx+1], seg - idx);
-}
-function getCubeColor(i, blend, schA, schB, hueShift) {
-var tc  = i / (NUM - 1);
-var col = lerpRGB(sampleScheme(schA, tc), sampleScheme(schB, tc), blend);
-var shift = hueShift * Math.PI * 2;
-var r=col[0]/255, g=col[1]/255, b=col[2]/255;
-var cosA=Math.cos(shift), sinA=Math.sin(shift);
-var nr=r*(0.213+cosA*0.787-sinA*0.213)+g*(0.715-cosA*0.715-sinA*0.715)+b*(0.072-cosA*0.072+sinA*0.928);
-var ng=r*(0.213-cosA*0.213+sinA*0.143)+g*(0.715+cosA*0.285+sinA*0.140)+b*(0.072-cosA*0.072-sinA*0.283);
-var nb=r*(0.213-cosA*0.213-sinA*0.787)+g*(0.715-cosA*0.715+sinA*0.715)+b*(0.072+cosA*0.928+sinA*0.072);
-return ‘rgb(’+Math.round(Math.max(0,Math.min(255,nr*255)))+’,’+Math.round(Math.max(0,Math.min(255,ng*255)))+’,’+Math.round(Math.max(0,Math.min(255,nb*255)))+’)’;
+function sampleScheme(s, tc) {
+  var stops = SCHEMES[s];
+  var seg   = tc * (stops.length-1);
+  var idx   = Math.min(Math.floor(seg), stops.length-2);
+  return lerpRGB(stops[idx], stops[idx+1], seg-idx);
 }
 
-// ── NOISE ─────────────────────────────────────────────
-function hash3(x,y,z){ var ix=Math.floor(x),iy=Math.floor(y),iz=Math.floor(z); return Math.sin(ix*127.1+iy*311.7+iz*74.9)*43758.5453%1; }
-function smoothstep(t){ return t*t*(3-2*t); }
-function valueNoise3(x,y,z){
-var ix=Math.floor(x),iy=Math.floor(y),iz=Math.floor(z),fx=x-ix,fy=y-iy,fz=z-iz;
-var ux=smoothstep(fx),uy=smoothstep(fy),uz=smoothstep(fz);
-var v000=hash3(ix,iy,iz),v100=hash3(ix+1,iy,iz),v010=hash3(ix,iy+1,iz),v110=hash3(ix+1,iy+1,iz);
-var v001=hash3(ix,iy,iz+1),v101=hash3(ix+1,iy,iz+1),v011=hash3(ix,iy+1,iz+1),v111=hash3(ix+1,iy+1,iz+1);
-var x00=v000+ux*(v100-v000),x10=v010+ux*(v110-v010),x01=v001+ux*(v101-v001),x11=v011+ux*(v111-v011);
-return (x00+uy*(x10-x00))+uz*((x01+uy*(x11-x01))-(x00+uy*(x10-x00)));
-}
-function fbm(x,y,z){ var v=0,a=0.5,f=1,i; for(i=0;i<4;i++){v+=valueNoise3(x*f,y*f,z*f)*a;f*=2.1;a*=0.48;} return v; }
-
-// ── ROTATIONS ─────────────────────────────────────────
-function rotateX(v,a){ var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [x,c*y-s*z,s*y+c*z]; }
-function rotateY(v,a){ var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [c*x+s*z,y,-s*x+c*z]; }
-function rotateZ(v,a){ var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [c*x-s*y,s*x+c*y,z]; }
-function project(v){ var sc=FOV/(FOV+v[2]); return [v[0]*sc,v[1]*sc]; }
-
-// ── EXPLOSION STATE ───────────────────────────────────
-var explodeT     = 0;    // 0=idle, >0=exploding, counts down
-var EXPLODE_DUR  = 1.8;  // seconds for explosion arc
-var syncBlending = 0;    // 0=off, counts up during sync converge
-
-// ── INFINITY MIRROR LAYERS ────────────────────────────
-// We draw the scene multiple times with decreasing scale/opacity
-var MIRROR_LAYERS = 6;
-
-// ── DRAW ONE CUBE ─────────────────────────────────────
-function drawCube(cubeIdx, size, ay, ax, az, alpha, color, W, H, T, bulgeFactor) {
-var proj=[],p,i,e,a,b;
-var deformAmp = size * 0.18 * (cubeIdx/(NUM-1));
-var seed = seeds[cubeIdx];
-
-for (i=0;i<8;i++) {
-var bv=BASE_VERTS[i];
-var nx=bv[0]*1.3+T*0.12+seed, ny=bv[1]*1.3+T*0.09+seed*0.7, nz=bv[2]*1.3+T*0.07+seed*1.3;
-var dx=(fbm(nx,ny+3.7,nz+1.3)-0.5)*2;
-var dy=(fbm(nx+5.2,ny,nz+8.1)-0.5)*2;
-var dz=(fbm(nx+2.9,ny+7.4,nz)-0.5)*2;
-p=[bv[0]*size+dx*deformAmp, bv[1]*size+dy*deformAmp, bv[2]*size+dz*deformAmp];
-p=rotateY(p,ay); p=rotateX(p,ax); p=rotateZ(p,az);
-proj.push(project(p));
+function getColor(i, hueShift) {
+  var tc  = NUM>1 ? i/(NUM-1) : 0;
+  var col = lerpRGB(sampleScheme(currentScheme,tc), sampleScheme(nextScheme,tc), schemeBlend);
+  var sh  = hueShift * Math.PI * 2;
+  var r=col[0]/255, g=col[1]/255, b=col[2]/255;
+  var c=Math.cos(sh), s=Math.sin(sh);
+  var nr = r*(0.213+c*0.787-s*0.213)+g*(0.715-c*0.715-s*0.715)+b*(0.072-c*0.072+s*0.928);
+  var ng = r*(0.213-c*0.213+s*0.143)+g*(0.715+c*0.285+s*0.140)+b*(0.072-c*0.072-s*0.283);
+  var nb = r*(0.213-c*0.213-s*0.787)+g*(0.715-c*0.715+s*0.715)+b*(0.072+c*0.928+s*0.072);
+  return 'rgb('+Math.round(clamp(nr*255,0,255))+','+Math.round(clamp(ng*255,0,255))+','+Math.round(clamp(nb*255,0,255))+')';
 }
 
-ctx.save();
-ctx.translate(W/2, H/2);
-ctx.globalAlpha = alpha;
-ctx.strokeStyle = color;
-ctx.lineWidth   = 0.5;
-ctx.lineCap     = ‘round’;
-ctx.lineJoin    = ‘round’;
+// ─── NOISE ───────────────────────────────────────────────────────────────────
 
-// Draw edges — when bulgeFactor > 0, use quadratic bezier curves
-// The control point is pushed outward perpendicular to the edge midpoint
-for (e=0;e<12;e++) {
-a=EDGES[e][0]; b=EDGES[e][1];
-var ax1=proj[a][0], ay1=proj[a][1];
-var bx1=proj[b][0], by1=proj[b][1];
-
-```
-ctx.beginPath();
-ctx.moveTo(ax1, ay1);
-
-if (bulgeFactor > 0.001) {
-  // Midpoint of edge
-  var mx = (ax1+bx1)*0.5;
-  var my = (ay1+by1)*0.5;
-  // Perpendicular direction from center of canvas — pushes outward
-  var len = Math.sqrt(mx*mx+my*my);
-  var nx2 = len > 0.001 ? mx/len : 0;
-  var ny2 = len > 0.001 ? my/len : 1;
-  // Edge length for scaling bulge
-  var edgeLen = Math.sqrt((bx1-ax1)*(bx1-ax1)+(by1-ay1)*(by1-ay1));
-  var bulge   = edgeLen * bulgeFactor * 0.6;
-  // Control point pushed outward
-  var cpx = mx + nx2 * bulge;
-  var cpy = my + ny2 * bulge;
-  ctx.quadraticCurveTo(cpx, cpy, bx1, by1);
-} else {
-  ctx.lineTo(bx1, by1);
+function hash(x,y,z) {
+  var ix=Math.floor(x), iy=Math.floor(y), iz=Math.floor(z);
+  return Math.sin(ix*127.1+iy*311.7+iz*74.9)*43758.5453%1;
 }
-ctx.stroke();
-```
+function smooth(t) { return t*t*(3-2*t); }
 
+function vnoise(x,y,z) {
+  var ix=Math.floor(x), iy=Math.floor(y), iz=Math.floor(z);
+  var fx=x-ix, fy=y-iy, fz=z-iz;
+  var ux=smooth(fx), uy=smooth(fy), uz=smooth(fz);
+  var a=hash(ix,iy,iz),   b=hash(ix+1,iy,iz),   c=hash(ix,iy+1,iz),   d=hash(ix+1,iy+1,iz);
+  var e=hash(ix,iy,iz+1), f=hash(ix+1,iy,iz+1), g=hash(ix,iy+1,iz+1), h=hash(ix+1,iy+1,iz+1);
+  return (a+ux*(b-a)+uy*(c+ux*(d-c)-a-ux*(b-a))) + uz*((e+ux*(f-e)+uy*(g+ux*(h-g)-e-ux*(f-e)))-(a+ux*(b-a)+uy*(c+ux*(d-c)-a-ux*(b-a))));
 }
 
-ctx.restore();
+function fbm(x,y,z) {
+  var v=0, amp=0.5, freq=1;
+  for (var i=0; i<3; i++) { v+=vnoise(x*freq,y*freq,z*freq)*amp; freq*=2.1; amp*=0.48; }
+  return v;
 }
 
-// ── RENDER ONE FULL FRAME OF CUBES ────────────────────
-function renderScene(W, H, alphaMult, sizeMult, bulgeFactor) {
-var BASE_SIZE    = Math.min(W,H) * 0.018 * sizeMult;
-var MAX_SIZE     = Math.min(W,H) * 0.45  * sizeMult;
-var PULSE_PERIOD = 8.0;
-var pulsePhase   = (t / PULSE_PERIOD) % 1.0;
-var hueShift     = Math.sin(hueShiftT) * 0.15;
-var i, frac, rippleOffset, cubePulse, naturalSize, size, cubeHue, color, alpha;
+// ─── 3D TRANSFORMS ───────────────────────────────────────────────────────────
 
-for (i=NUM-1; i>=0; i–) {
-frac         = i / (NUM-1);
-rippleOffset = frac * 0.55;
-cubePulse    = 0.5 - 0.5*Math.cos(((pulsePhase+rippleOffset)%1.0)*Math.PI*2);
-naturalSize  = BASE_SIZE + (MAX_SIZE-BASE_SIZE)*frac;
-size         = naturalSize + (MAX_SIZE-naturalSize)*cubePulse*0.9;
+function rotY(v,a) { var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [c*x+s*z,y,-s*x+c*z]; }
+function rotX(v,a) { var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [x,c*y-s*z,s*y+c*z]; }
+function rotZ(v,a) { var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [c*x-s*y,s*x+c*y,z]; }
+function project(v) { var s=FOV/(FOV+v[2]); return [v[0]*s,v[1]*s]; }
 
-```
-// Explosion: scale up sizes during explode
-if (bulgeFactor > 0) {
-  size *= (1 + bulgeFactor * 0.35);
+// ─── DRAW CUBE ───────────────────────────────────────────────────────────────
+
+function drawCube(ci, size, ay, ax, az, alpha, color, cx, cy, T, bulge) {
+  var pts=[], p, i, e, ai, bi;
+  var deform = size * 0.18 * (ci / (NUM>1 ? NUM-1 : 1));
+  var sd = seeds[ci];
+
+  for (i=0; i<8; i++) {
+    var v = BASE_VERTS[i];
+    var nx=v[0]*1.3+T*0.1+sd, ny=v[1]*1.3+T*0.08+sd*0.7, nz=v[2]*1.3+T*0.06+sd*1.3;
+    p = [
+      v[0]*size + (fbm(nx,      ny+3.7,nz+1.3)-0.5)*2*deform,
+      v[1]*size + (fbm(nx+5.2,  ny,    nz+8.1)-0.5)*2*deform,
+      v[2]*size + (fbm(nx+2.9,  ny+7.4,nz    )-0.5)*2*deform
+    ];
+    p = rotY(p,ay); p = rotX(p,ax); p = rotZ(p,az);
+    pts.push(project(p));
+  }
+
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 1;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+
+  for (e=0; e<12; e++) {
+    ai=EDGES[e][0]; bi=EDGES[e][1];
+    var x1=cx+pts[ai][0], y1=cy+pts[ai][1];
+    var x2=cx+pts[bi][0], y2=cy+pts[bi][1];
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    if (bulge>0.01) {
+      var mx=(x1+x2)*0.5, my=(y1+y2)*0.5;
+      var ox=mx-cx, oy=my-cy;
+      var ln=Math.sqrt(ox*ox+oy*oy);
+      if (ln>0.1) { ox/=ln; oy/=ln; }
+      var el=Math.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
+      ctx.quadraticCurveTo(mx+ox*el*bulge*0.6, my+oy*el*bulge*0.6, x2, y2);
+    } else {
+      ctx.lineTo(x2,y2);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
-cubeHue = hueShift + Math.sin(hueShiftT*3.1+frac*Math.PI)*0.08;
-color   = getCubeColor(i, schemeBlend, currentScheme, nextScheme, cubeHue);
-alpha   = (0.7 + 0.3*cubePulse) * alphaMult;
-
-// Always apply a gentle base bezier curve, explode adds more on top
-var baseBulge = 0.12 + Math.sin(hueShiftT * 1.3 + frac * Math.PI) * 0.06;
-drawCube(i, size, anglesY[i], anglesX[i], anglesZ[i], alpha, color, W, H, t, bulgeFactor > 0 ? bulgeFactor : baseBulge);
-```
-
-}
-}
-
-// ── SYNC / RANDOMIZE ──────────────────────────────────
-function rebuildArrays(newNum) {
-var j;
-NUM = newNum;
-anglesY = []; anglesX = []; anglesZ = [];
-speedY  = []; speedX  = []; speedZ  = [];
-dirY    = []; dirX    = []; dirZ    = [];
-seeds   = [];
-for (j = 0; j < NUM; j++) {
-anglesY.push((j / NUM) * Math.PI * 2);
-anglesX.push((j / NUM) * Math.PI * 2 * 0.618);
-anglesZ.push((j / NUM) * Math.PI * 2 * 0.382);
-speedY.push(INNER_SPEED * Math.pow(0.99, j));
-speedX.push(INNER_SPEED * Math.pow(0.99, j) * (0.4 + Math.random() * 0.5));
-speedZ.push(INNER_SPEED * Math.pow(0.99, j) * (0.2 + Math.random() * 0.4));
-dirY.push(j % 2 === 0 ? 1 : -1);
-dirX.push(j % 2 === 0 ? -1 : 1);
-dirZ.push(j % 3 === 0 ? 1 : j % 3 === 1 ? -1 : 1);
-seeds.push(Math.random() * 100);
-}
-}
-
-function triggerSync() {
-// Pick a random cube count — weighted toward organic-feeling mid-ranges
-// Use a log-scale distribution so small counts (10-30) are just as likely as large (80-125)
-var minN = 8, maxN = 125;
-var newNum = Math.round(Math.exp(Math.log(minN) + Math.random() * Math.log(maxN / minN)));
-newNum = Math.max(minN, Math.min(maxN, newNum));
-rebuildArrays(newNum);
-
-explodeT     = EXPLODE_DUR;
-syncBlending = 0;
-nextScheme   = (currentScheme + 1 + Math.floor(Math.random()*(SCHEMES.length-1))) % SCHEMES.length;
-}
+// ─── TOUCH / EXPLODE ─────────────────────────────────────────────────────────
 
 function randomizeMotion() {
-var j;
-for (j=0;j<NUM;j++) {
-dirY[j]   = Math.random() < 0.5 ? 1 : -1;
-dirX[j]   = Math.random() < 0.5 ? 1 : -1;
-dirZ[j]   = Math.random() < 0.5 ? 1 : -1;
-speedX[j] = INNER_SPEED * Math.pow(0.99,j) * (0.3 + Math.random()*0.7);
-speedZ[j] = INNER_SPEED * Math.pow(0.99,j) * (0.1 + Math.random()*0.5);
-seeds[j]  = Math.random() * 100;
-}
-currentScheme = nextScheme;
-schemeBlend   = 0;
+  for (var j=0; j<NUM; j++) {
+    dirY[j]   = Math.random()<0.5 ? 1 : -1;
+    dirX[j]   = Math.random()<0.5 ? 1 : -1;
+    dirZ[j]   = Math.random()<0.5 ? 1 : -1;
+    speedX[j] = INNER_SPEED * Math.pow(0.99,j) * (0.3+Math.random()*0.7);
+    speedZ[j] = INNER_SPEED * Math.pow(0.99,j) * (0.1+Math.random()*0.5);
+    seeds[j]  = Math.random()*100;
+  }
+  currentScheme = nextScheme;
+  schemeBlend   = 0;
 }
 
-// ── TOUCH / CLICK ─────────────────────────────────────
-function handleTouch(e) {
-e.preventDefault();
-triggerSync();
+function onTouch(e) {
+  e.preventDefault();
+  var minN=8, maxN=120;
+  var n=Math.round(Math.exp(Math.log(minN)+Math.random()*Math.log(maxN/minN)));
+  initCubes(clamp(n, minN, maxN));
+  explodeT   = EXPLODE_DUR;
+  syncBlend  = 0;
+  nextScheme = (currentScheme+1+Math.floor(Math.random()*(SCHEMES.length-1))) % SCHEMES.length;
 }
-canvas.addEventListener(‘touchstart’, handleTouch, { passive: false });
-canvas.addEventListener(‘mousedown’,  handleTouch);
 
-// ── LERP ──────────────────────────────────────────────
-function lerp(a,b,f){ return a+(b-a)*f; }
+mainCanvas.addEventListener('touchstart', onTouch, {passive:false});
+mainCanvas.addEventListener('mousedown',  onTouch);
 
-var t          = 0;
-var bgT        = 0;
-var hueShiftT  = 0;
+// ─── MAIN LOOP ───────────────────────────────────────────────────────────────
 
 function animate() {
-requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
 
-var dt = 0.006;
-t          += dt;
-bgT        += 0.003;
-hueShiftT  += 0.0008;
+  var dt=0.006;
+  t+=dt; bgT+=0.003; hueT+=0.0008;
 
-var DPR = getDPR();
-var W   = window.innerWidth;
-var H   = window.innerHeight;
-var i, speed;
+  // Explosion
+  var bulge=0;
+  if (explodeT>0) {
+    explodeT -= dt;
+    var prog = 1-(explodeT/EXPLODE_DUR);
+    bulge      = Math.sin(prog*Math.PI)*(1-prog*0.3);
+    syncBlend  = Math.min(1, prog*2.5);
+    schemeBlend= syncBlend;
+    if (prog>=0.45 && prog<0.46 && syncBlend>0.8) randomizeMotion();
+    if (explodeT<=0) { explodeT=0; bulge=0; }
+  }
 
-// ── EXPLOSION TIMER ──────────────────────────────
-var bulgeFactor = 0;
-if (explodeT > 0) {
-explodeT -= dt;
-var prog = 1 - (explodeT / EXPLODE_DUR); // 0→1 over explosion duration
-// Bulge arc: rises fast then decays — like a plucked string
-bulgeFactor = Math.sin(prog * Math.PI) * (1 - prog * 0.3);
+  // Advance rotations
+  for (var i=0; i<NUM; i++) {
+    if (syncBlend>0.01 && explodeT>0) {
+      var pull = syncBlend*0.06;
+      anglesY[i] += speedY[i]*dirY[i]*(1-syncBlend*0.8) - anglesY[i]*pull;
+      anglesX[i] += speedX[i]*dirX[i]*(1-syncBlend*0.8) - anglesX[i]*pull;
+      anglesZ[i] += speedZ[i]*dirZ[i]*(1-syncBlend*0.8) - anglesZ[i]*pull;
+    } else {
+      anglesY[i] += speedY[i]*dirY[i];
+      anglesX[i] += speedX[i]*dirX[i];
+      anglesZ[i] += speedZ[i]*dirZ[i];
+    }
+  }
 
-```
-// Sync converge during first half of explosion
-syncBlending = Math.min(1.0, prog * 2.5);
-schemeBlend  = syncBlending;
+  // Background
+  ctx.save();
+  ctx.scale(DPR,DPR);
+  var bp = (Math.sin(bgT)+1)/2;
+  var bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0, 'rgb('+Math.round(lerp(3,12,bp))+','+Math.round(lerp(5,18,bp))+','+Math.round(lerp(30,70,bp))+')');
+  bg.addColorStop(1, 'rgb('+Math.round(lerp(1, 3,bp))+','+Math.round(lerp(1, 5,bp))+','+Math.round(lerp(10,25,bp))+')');
+  ctx.fillStyle=bg;
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
 
-// Scatter at peak (prog ~0.5)
-if (prog >= 0.45 && prog < 0.45 + dt/EXPLODE_DUR + 0.01 && syncBlending > 0.8) {
-  randomizeMotion();
+  // Infinity mirror
+  var BASE_SIZE   = Math.min(W,H)*0.018;
+  var MAX_SIZE    = Math.min(W,H)*0.44;
+  var pulsePhase  = (t/8)%1;
+  var hueShift    = Math.sin(hueT)*0.15;
+  var cx=W/2, cy=H/2;
+
+  for (var layer=MIRROR_LAYERS-1; layer>=0; layer--) {
+    var depth = layer/(MIRROR_LAYERS-1);
+    var sc    = 0.55+depth*0.45;
+    var al    = 0.15+depth*0.85;
+    var isFront = layer===MIRROR_LAYERS-1;
+
+    ctx.save();
+    ctx.scale(DPR,DPR);
+    ctx.translate(cx*(1-sc), cy*(1-sc));
+    ctx.scale(sc,sc);
+
+    for (var j=NUM-1; j>=0; j--) {
+      var frac = NUM>1 ? j/(NUM-1) : 0;
+      var pp   = 0.5-0.5*Math.cos(((pulsePhase+frac*0.55)%1)*Math.PI*2);
+      var nat  = BASE_SIZE+(MAX_SIZE-BASE_SIZE)*frac;
+      var sz   = nat+(MAX_SIZE-nat)*pp*0.9;
+      if (isFront && bulge>0) sz *= (1+bulge*0.35);
+      var bb   = isFront && bulge>0 ? bulge : 0.12+Math.sin(hueT*1.3+frac*Math.PI)*0.06;
+      drawCube(j, sz, anglesY[j], anglesX[j], anglesZ[j],
+        (0.7+0.3*pp)*al,
+        getColor(j, hueShift+Math.sin(hueT*3.1+frac*Math.PI)*0.08),
+        cx, cy, t, bb);
+    }
+    ctx.restore();
+  }
 }
 
-if (explodeT <= 0) {
-  explodeT    = 0;
-  bulgeFactor = 0;
-}
-```
+// ─── TEXT OVERLAY ────────────────────────────────────────────────────────────
 
+var CYCLE_MS   = 39000;
+var nameShuffleFrame = 0;
+var nameDisplay = "Minder Singh";
+var charSizes = [];
+for (var csi = 0; csi < 12; csi++) charSizes.push(1.0); // init
+var sizeFrame = 0;
+var cycleStart = Date.now();
+
+function easeInOut(x) { return x<0.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2; }
+
+
+
+
+// ── MOBY DICK CH.13 + ASCII SCRAMBLE ────────────────────────────────────────
+// Word pool drawn from themes of Moby Dick Chapter 99 (The Doubloon)
+var MOBY_WORDS = ("doubloon gold coin Ecuador equator Ahab Starbuck Stubb Flask Queequeg Pip zodiac signs Aries Taurus Gemini Cancer Leo Virgo Libra Scorpio Sagittarius Capricorn Aquarius Pisces tower rooster mountains volcano firmament sun mirror self navel world reads himself fate prophecy mast nail struck hammered obsession meaning symbol interpret meditate mystery ocean whale white leviathan deep abyss soul dark reflection solipsism all one who sees sign reads omen circle heaven fire tower cock crowing noon midnight meaning nothing everything vast inscrutable silent brooding").split(' ');
+
+var ASCII_CHARS = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`0123456789░▒▓■□◆◇○●★☆∞≈≠±×←→↑↓▲▼';
+var mobyStr     = MOBY_WORDS.join(' ');
+var CHAR_COUNT  = 300;
+var MAX_LINES   = 60;
+var scrambleFrame = 0;
+
+// Per-line independent buffers
+var lineChars = [], lineSrc = [], lineOffset = [];
+for (var li2 = 0; li2 < MAX_LINES; li2++) {
+  var off = Math.floor(Math.random() * mobyStr.length);
+  lineOffset.push(off);
+  var lc = [], ls = [];
+  for (var ci2 = 0; ci2 < CHAR_COUNT; ci2++) {
+    var ch2 = mobyStr[(off + ci2) % mobyStr.length];
+    lc.push(ch2); ls.push(ch2);
+  }
+  lineChars.push(lc);
+  lineSrc.push(ls);
 }
 
-// ── ADVANCE ANGLES ───────────────────────────────
-for (i=0; i<NUM; i++) {
-speed = speedY[i];
-if (syncBlending > 0.01 && explodeT > 0) {
-// During explosion converge phase: pull toward common angle
-var pull = syncBlending * 0.06;
-anglesY[i] += speed*dirY[i]*(1-syncBlending*0.8) - anglesY[i]*pull;
-anglesX[i] += speedX[i]*dirX[i]*(1-syncBlending*0.8) - anglesX[i]*pull;
-anglesZ[i] += speedZ[i]*dirZ[i]*(1-syncBlending*0.8) - anglesZ[i]*pull;
-} else {
-anglesY[i] += speed     * dirY[i];
-anglesX[i] += speedX[i] * dirX[i];
-anglesZ[i] += speedZ[i] * dirZ[i];
-}
+
+function getLineStr(lineIdx) {
+  var lc = lineChars[lineIdx % MAX_LINES];
+  var ls = lineSrc[lineIdx % MAX_LINES];
+  var off = lineOffset[lineIdx % MAX_LINES];
+
+  for (var ci = 0; ci < CHAR_COUNT; ci++) {
+    var r = Math.random();
+    if (r < 0.04) {
+      // Random ASCII symbol
+      lc[ci] = ASCII_CHARS[Math.floor(Math.random() * ASCII_CHARS.length)];
+    } else if (r < 0.10) {
+      // Restore to moby source char
+      lc[ci] = ls[ci];
+    } else if (r < 0.13) {
+      // Placeholder — words handled separately
+    } else if (r < 0.15) {
+      // Slow scroll: advance source
+      ls[ci] = mobyStr[(off + ci + scrambleFrame) % mobyStr.length];
+      lc[ci] = ls[ci];
+    }
+  }
+  return lc.join('');
 }
 
-// ── BACKGROUND ───────────────────────────────────
-var bgPhase = (Math.sin(bgT)+1)/2;
+function drawText() {
+  requestAnimationFrame(drawText);
 
-// ── INFINITY MIRROR ──────────────────────────────
-// Draw scene multiple times with decreasing scale+opacity, no clearRect between
-// First: paint background once
-ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-var grad = ctx.createLinearGradient(0,0,0,H);
-grad.addColorStop(0,‘rgb(’+Math.round(lerp(3,12,bgPhase))+’,’+Math.round(lerp(5,18,bgPhase))+’,’+Math.round(lerp(30,70,bgPhase))+’)’);
-grad.addColorStop(1,‘rgb(’+Math.round(lerp(1,3,bgPhase))+’,’+Math.round(lerp(1,5,bgPhase))+’,’+Math.round(lerp(10,25,bgPhase))+’)’);
-ctx.fillStyle = grad;
-ctx.fillRect(0,0,W,H);
+  var DPR2 = window.devicePixelRatio || 1;
+  var W2   = window.innerWidth;
+  var H2   = window.innerHeight;
+  var now  = Date.now();
 
-// Draw MIRROR_LAYERS times — each layer: slightly smaller, slightly more transparent
-// Deeper layers = older reflections = smaller and dimmer
-var layer, layerScale, layerAlpha;
-for (layer = MIRROR_LAYERS - 1; layer >= 0; layer–) {
-// layer 0 = outermost reflection (smallest, dimmest)
-// layer MIRROR_LAYERS-1 = closest (full size, full opacity)
-var depth      = layer / (MIRROR_LAYERS - 1);   // 0=far, 1=near
-layerScale     = 0.55 + depth * 0.45;            // 0.55x at depth 0, 1.0x at depth 1
-layerAlpha     = 0.15 + depth * 0.85;            // dim far layers
-// Scale the DPR transform so each layer draws smaller
-ctx.setTransform(DPR * layerScale, 0, 0, DPR * layerScale,
-W * DPR * (1 - layerScale) / 2,
-H * DPR * (1 - layerScale) / 2);
-renderScene(W, H, layerAlpha, layerScale > 0.9 ? 1.0 : layerScale, layer === MIRROR_LAYERS - 1 ? bulgeFactor : 0);
-}
+  tCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
+  tCtx.save();
+  tCtx.scale(DPR2, DPR2);
+
+  // 39-second cycle 0->1
+  var rawT   = ((now - cycleStart) % CYCLE_MS) / CYCLE_MS;
+  var easedT = easeInOut(rawT);
+
+  // Font shrinks 20->2pt over full cycle
+  var fontSize = 20 + (2 - 20) * easedT;
+
+  // 5s fade in, 5s fade out
+  var FADE = 5000 / CYCLE_MS;
+  var opacity;
+  if      (rawT < FADE)        opacity = easeInOut(rawT / FADE);
+  else if (rawT < 1.0 - FADE)  opacity = 1.0;
+  else                          opacity = easeInOut((1.0 - rawT) / FADE);
+
+  // Padding proportional to font size
+  var pad = 12 * (fontSize / 20);
+  var cx2 = W2 / 2;
+  var cy2 = H2 / 2;
+
+  // Letter spacing expands from -0.02em → 0.20em as font shrinks
+  var letterSp = (-0.02 + 0.62 * easedT).toFixed(3) + 'em';
+  tCtx.font          = '300 ' + fontSize + "px 'IBM Plex Serif', Georgia, serif";
+  tCtx.letterSpacing = letterSp;
+  tCtx.textAlign     = 'center';
+  tCtx.textBaseline  = 'middle';
+
+  var name  = 'Minder Singh';
+  var nameW = tCtx.measureText(name).width;
+  var bw    = nameW + pad * 2;
+  var bh    = fontSize + pad * 2;
+  var bx    = cx2 - bw / 2;
+  var by    = cy2 - bh / 2;
+
+  // Box background
+  tCtx.globalAlpha = opacity * 0.05;
+  tCtx.fillStyle   = '#000';
+  tCtx.fillRect(bx, by, bw, bh);
+
+  // Name — shuffle case at 24fps, size at 12fps independently
+  nameShuffleFrame++;
+  sizeFrame++;
+  var NAME_SRC = 'MINDER SINGH';
+
+  // Update sizes at 12fps (every 5 frames)
+  if (sizeFrame % 5 === 0) {
+    charSizes = [];
+    for (var csi2 = 0; csi2 < NAME_SRC.length; csi2++) {
+      charSizes.push(0.80 + Math.random() * 0.40); // 80%-120%
+    }
+  }
+  if (charSizes.length < NAME_SRC.length) {
+    while (charSizes.length < NAME_SRC.length) charSizes.push(1.0);
+  }
+
+  nameDisplay = NAME_SRC.toUpperCase(); // all caps
+
+  // Name text — simple all caps, no size shuffle
+  tCtx.globalAlpha = opacity;
+  tCtx.fillStyle   = '#ffffff';
+  tCtx.textAlign   = 'center';
+  tCtx.font        = '300 ' + fontSize + "px 'IBM Plex Serif', Georgia, serif";
+  tCtx.fillText(nameDisplay, cx2, cy2);
+
+  // Horizontal rule with margins, 40% opacity, moved up
+  var ruleY  = H2 - 34;
+  var margin = 12;
+  var copyY2 = H2 - 14;
+  tCtx.globalAlpha = 0.40;
+  tCtx.strokeStyle = '#fff';
+  tCtx.lineWidth   = 0.25;
+  tCtx.beginPath();
+  tCtx.moveTo(margin, ruleY);
+  tCtx.lineTo(W2 - margin, ruleY);
+  tCtx.stroke();
+
+  // Copyright — right-justified
+  tCtx.globalAlpha   = 1.0;
+  tCtx.font          = '400 11px "Courier New", monospace';
+  tCtx.letterSpacing = '0em';
+  tCtx.textAlign     = 'right';
+  tCtx.fillStyle     = '#fff';
+  tCtx.fillText('\u00a9 2026', W2 - margin, copyY2);
+
+  // Wireframe globe — bottom left, same baseline as copyright
+  // Live clock with milliseconds — bottom left
+  var now2    = new Date();
+  var hh      = String(now2.getHours()).padStart(2,'0');
+  var mm      = String(now2.getMinutes()).padStart(2,'0');
+  var ss      = String(now2.getSeconds()).padStart(2,'0');
+  var ms      = String(now2.getMilliseconds()).padStart(3,'0');
+  var dd      = String(now2.getDate()).padStart(2,'0');
+  var mo      = String(now2.getMonth()+1).padStart(2,'0');
+  var yyyy    = now2.getFullYear();
+  var dateStr = yyyy + '.' + mo + '.' + dd;
+  var timeStr = hh + ':' + mm + ':' + ss + '.' + ms;
+  tCtx.globalAlpha   = 1.0;
+  tCtx.fillStyle     = '#ffffff';
+  tCtx.font          = '400 11px "Courier New", monospace';
+  tCtx.letterSpacing = '0em';
+  tCtx.textAlign     = 'left';
+  tCtx.fillText(dateStr + '  ' + timeStr, margin, copyY2);
+
+  // Moby Dick text — fills page from top to just above bottom rule
+  tCtx.globalAlpha   = 0.25;
+  tCtx.fillStyle     = '#ffffff';
+  tCtx.font          = '400 11px "Courier New", monospace';
+  tCtx.letterSpacing = '0em';
+  tCtx.textAlign     = 'left';
+  var lineH   = 16;
+  var textTop = 20;
+  var textBot = ruleY - 8; // stop above bottom horizontal rule
+  var maxLines = Math.floor((textBot - textTop) / lineH);
+  scrambleFrame++;
+
+  var charPx   = tCtx.measureText('W').width;
+  var maxChars = Math.min(Math.ceil(W2 / charPx) + 2, CHAR_COUNT);
+
+  for (var li = 0; li < maxLines; li++) {
+    var lineStr = getLineStr(li).substring(0, maxChars);
+    tCtx.globalAlpha = 0.25;
+    tCtx.fillStyle   = '#ffffff';
+    tCtx.fillText(lineStr, 0, textTop + li * lineH);
+  }
+
+
+
+  tCtx.restore();
 }
 
 animate();
+drawText();
 
 </script>
 </body>
