@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Cube</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+canvas { display: block; position: fixed; top: 0; left: 0; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width  = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+var BASE_VERTS = [
+  [-1,-1,-1], [ 1,-1,-1], [ 1, 1,-1], [-1, 1,-1],
+  [-1,-1, 1], [ 1,-1, 1], [ 1, 1, 1], [-1, 1, 1]
+];
+var EDGES = [
+  [0,1],[1,2],[2,3],[3,0],
+  [4,5],[5,6],[6,7],[7,4],
+  [0,4],[1,5],[2,6],[3,7]
+];
+
+var FOV = 1800;
+var NUM = 25;
+var INNER_SPEED = 0.014;
+var MIRROR_LAYERS = 5;
+
+var anglesY = [], anglesX = [], anglesZ = [];
+var speedY  = [], speedX  = [], speedZ  = [];
+var dirY    = [], dirX    = [], dirZ    = [];
+var seeds   = [];
+
+function initArrays(n) {
+  var j;
+  NUM = n;
+  anglesY = []; anglesX = []; anglesZ = [];
+  speedY  = []; speedX  = []; speedZ  = [];
+  dirY    = []; dirX    = []; dirZ    = [];
+  seeds   = [];
+  for (j = 0; j < NUM; j++) {
+    anglesY.push((j / NUM) * Math.PI * 2);
+    anglesX.push((j / NUM) * Math.PI * 2 * 0.618);
+    anglesZ.push((j / NUM) * Math.PI * 2 * 0.382);
+    speedY.push(INNER_SPEED * Math.pow(0.99, j));
+    speedX.push(INNER_SPEED * Math.pow(0.99, j) * (0.4 + Math.random() * 0.5));
+    speedZ.push(INNER_SPEED * Math.pow(0.99, j) * (0.2 + Math.random() * 0.4));
+    dirY.push(j % 2 === 0 ? 1 : -1);
+    dirX.push(j % 2 === 0 ? -1 : 1);
+    dirZ.push(j % 3 === 0 ? 1 : j % 3 === 1 ? -1 : 1);
+    seeds.push(Math.random() * 100);
+  }
+}
+initArrays(25);
+
+var SCHEMES = [
+  [[255,255,255],[255,255,0],[255,128,0],[255,0,0]],
+  [[0,255,255],[0,128,255],[128,0,255],[255,0,200]],
+  [[200,255,0],[0,255,100],[0,200,180],[0,80,255]],
+  [[255,0,128],[255,100,0],[255,220,0],[255,255,255]],
+  [[255,20,0],[220,0,180],[120,0,255],[20,0,180]],
+  [[255,200,0],[160,255,0],[0,255,220],[0,180,255]]
+];
+
+var currentScheme = 0, nextScheme = 1, schemeBlend = 0;
+
+function lerpV(a, b, f) {
+  return [
+    Math.round(a[0] + (b[0]-a[0])*f),
+    Math.round(a[1] + (b[1]-a[1])*f),
+    Math.round(a[2] + (b[2]-a[2])*f)
+  ];
+}
+function sampleScheme(s, tc) {
+  var stops = SCHEMES[s];
+  var seg = tc * (stops.length - 1);
+  var idx = Math.min(Math.floor(seg), stops.length - 2);
+  return lerpV(stops[idx], stops[idx+1], seg - idx);
+}
+function getColor(i, hueShift) {
+  var tc  = NUM > 1 ? i / (NUM - 1) : 0;
+  var col = lerpV(sampleScheme(currentScheme, tc), sampleScheme(nextScheme, tc), schemeBlend);
+  var sh  = hueShift * Math.PI * 2;
+  var r = col[0]/255, g = col[1]/255, b = col[2]/255;
+  var c = Math.cos(sh), s = Math.sin(sh);
+  var nr = r*(0.213+c*0.787-s*0.213)+g*(0.715-c*0.715-s*0.715)+b*(0.072-c*0.072+s*0.928);
+  var ng = r*(0.213-c*0.213+s*0.143)+g*(0.715+c*0.285+s*0.140)+b*(0.072-c*0.072-s*0.283);
+  var nb = r*(0.213-c*0.213-s*0.787)+g*(0.715-c*0.715+s*0.715)+b*(0.072+c*0.928+s*0.072);
+  var ri = Math.round(Math.max(0,Math.min(255,nr*255)));
+  var gi = Math.round(Math.max(0,Math.min(255,ng*255)));
+  var bi = Math.round(Math.max(0,Math.min(255,nb*255)));
+  return 'rgb('+ri+','+gi+','+bi+')';
+}
+
+function hash3(x,y,z) {
+  var ix=Math.floor(x),iy=Math.floor(y),iz=Math.floor(z);
+  return Math.sin(ix*127.1+iy*311.7+iz*74.9)*43758.5453%1;
+}
+function smt(t){ return t*t*(3-2*t); }
+function vnoise(x,y,z) {
+  var ix=Math.floor(x),iy=Math.floor(y),iz=Math.floor(z);
+  var fx=x-ix,fy=y-iy,fz=z-iz;
+  var ux=smt(fx),uy=smt(fy),uz=smt(fz);
+  var a=hash3(ix,iy,iz),b=hash3(ix+1,iy,iz),c=hash3(ix,iy+1,iz),d=hash3(ix+1,iy+1,iz);
+  var e=hash3(ix,iy,iz+1),f=hash3(ix+1,iy,iz+1),g=hash3(ix,iy+1,iz+1),h=hash3(ix+1,iy+1,iz+1);
+  var x0=a+ux*(b-a),x1=c+ux*(d-c),x2=e+ux*(f-e),x3=g+ux*(h-g);
+  var y0=x0+uy*(x1-x0),y1=x2+uy*(x3-x2);
+  return y0+uz*(y1-y0);
+}
+function fbm(x,y,z) {
+  var v=0,a=0.5,f=1,i;
+  for(i=0;i<3;i++){v+=vnoise(x*f,y*f,z*f)*a;f*=2.1;a*=0.48;}
+  return v;
+}
+
+function ry(v,a){ var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [c*x+s*z,y,-s*x+c*z]; }
+function rx(v,a){ var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [x,c*y-s*z,s*y+c*z]; }
+function rz(v,a){ var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [c*x-s*y,s*x+c*y,z]; }
+function proj(v){ var sc=FOV/(FOV+v[2]); return [v[0]*sc,v[1]*sc]; }
+
+function drawCube(ci, size, ay, ax, az, alpha, color, cx, cy, T, bulge) {
+  var pts=[],p,i,e,ai,bi;
+  var damp = size*0.18*(ci/(NUM>1?NUM-1:1));
+  var sd = seeds[ci];
+
+  for(i=0;i<8;i++){
+    var bv=BASE_VERTS[i];
+    var nx=bv[0]*1.3+T*0.1+sd, ny=bv[1]*1.3+T*0.08+sd*0.7, nz=bv[2]*1.3+T*0.06+sd*1.3;
+    var dx=(fbm(nx,ny+3.7,nz+1.3)-0.5)*2;
+    var dy=(fbm(nx+5.2,ny,nz+8.1)-0.5)*2;
+    var dz=(fbm(nx+2.9,ny+7.4,nz)-0.5)*2;
+    p=[bv[0]*size+dx*damp, bv[1]*size+dy*damp, bv[2]*size+dz*damp];
+    p=ry(p,ay); p=rx(p,ax); p=rz(p,az);
+    pts.push(proj(p));
+  }
+
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 1;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+
+  for(e=0;e<12;e++){
+    ai=EDGES[e][0]; bi=EDGES[e][1];
+    var x1=cx+pts[ai][0], y1=cy+pts[ai][1];
+    var x2=cx+pts[bi][0], y2=cy+pts[bi][1];
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    if(bulge>0.01){
+      var mx=(x1+x2)*0.5, my=(y1+y2)*0.5;
+      var ox=mx-cx, oy=my-cy;
+      var ln=Math.sqrt(ox*ox+oy*oy);
+      if(ln>0.1){ ox/=ln; oy/=ln; }
+      var el=Math.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
+      ctx.quadraticCurveTo(mx+ox*el*bulge*0.6, my+oy*el*bulge*0.6, x2, y2);
+    } else {
+      ctx.lineTo(x2,y2);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+var t=0, bgT=0, hueT=0;
+var explodeT=0, EXPLODE_DUR=1.8, syncBlend2=0;
+
+function randomizeMotion() {
+  var j;
+  for(j=0;j<NUM;j++){
+    dirY[j]=Math.random()<0.5?1:-1;
+    dirX[j]=Math.random()<0.5?1:-1;
+    dirZ[j]=Math.random()<0.5?1:-1;
+    speedX[j]=INNER_SPEED*Math.pow(0.99,j)*(0.3+Math.random()*0.7);
+    speedZ[j]=INNER_SPEED*Math.pow(0.99,j)*(0.1+Math.random()*0.5);
+    seeds[j]=Math.random()*100;
+  }
+  currentScheme=nextScheme;
+  schemeBlend=0;
+}
+
+function triggerSync(e) {
+  if(e){ e.preventDefault(); }
+  var minN=8, maxN=120;
+  var newNum=Math.round(Math.exp(Math.log(minN)+Math.random()*Math.log(maxN/minN)));
+  newNum=Math.max(minN,Math.min(maxN,newNum));
+  initArrays(newNum);
+  explodeT=EXPLODE_DUR;
+  syncBlend2=0;
+  nextScheme=(currentScheme+1+Math.floor(Math.random()*(SCHEMES.length-1)))%SCHEMES.length;
+}
+
+canvas.addEventListener('touchstart', triggerSync, {passive:false});
+canvas.addEventListener('mousedown',  triggerSync);
+
+function lerp(a,b,f){ return a+(b-a)*f; }
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  var dt=0.006;
+  t+=dt; bgT+=0.003; hueT+=0.0008;
+
+  var bulgeFactor=0;
+  if(explodeT>0){
+    explodeT-=dt;
+    var prog=1-(explodeT/EXPLODE_DUR);
+    bulgeFactor=Math.sin(prog*Math.PI)*(1-prog*0.3);
+    syncBlend2=Math.min(1,prog*2.5);
+    schemeBlend=syncBlend2;
+    if(prog>=0.45&&prog<0.46&&syncBlend2>0.8){ randomizeMotion(); }
+    if(explodeT<=0){ explodeT=0; bulgeFactor=0; }
+  }
+
+  var i, spd;
+  for(i=0;i<NUM;i++){
+    spd=speedY[i];
+    if(syncBlend2>0.01&&explodeT>0){
+      var pull=syncBlend2*0.06;
+      anglesY[i]+=spd*dirY[i]*(1-syncBlend2*0.8)-anglesY[i]*pull;
+      anglesX[i]+=speedX[i]*dirX[i]*(1-syncBlend2*0.8)-anglesX[i]*pull;
+      anglesZ[i]+=speedZ[i]*dirZ[i]*(1-syncBlend2*0.8)-anglesZ[i]*pull;
+    } else {
+      anglesY[i]+=spd*dirY[i];
+      anglesX[i]+=speedX[i]*dirX[i];
+      anglesZ[i]+=speedZ[i]*dirZ[i];
+    }
+  }
+
+  // Clear and draw background
+  ctx.save();
+  ctx.scale(DPR, DPR);
+  var bgP=(Math.sin(bgT)+1)/2;
+  var grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'rgb('+Math.round(lerp(3,12,bgP))+','+Math.round(lerp(5,18,bgP))+','+Math.round(lerp(30,70,bgP))+')');
+  grad.addColorStop(1,'rgb('+Math.round(lerp(1,3,bgP))+','+Math.round(lerp(1,5,bgP))+','+Math.round(lerp(10,25,bgP))+')');
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
+
+  // Infinity mirror layers
+  var BASE_SIZE=Math.min(W,H)*0.018;
+  var MAX_SIZE=Math.min(W,H)*0.44;
+  var PULSE_PERIOD=8;
+  var pulsePhase=(t/PULSE_PERIOD)%1;
+  var hueShift=Math.sin(hueT)*0.15;
+
+  var layer, depth, sc, al;
+  for(layer=MIRROR_LAYERS-1;layer>=0;layer--){
+    depth=layer/(MIRROR_LAYERS-1);
+    sc=0.55+depth*0.45;
+    al=0.15+depth*0.85;
+
+    // Draw cubes for this layer
+    var cx=W/2, cy=H/2;
+
+    ctx.save();
+    ctx.scale(DPR,DPR);
+    ctx.translate(cx*(1-sc), cy*(1-sc));
+    ctx.scale(sc,sc);
+
+    var j, frac, pp, nat, sz, cubeHue, col, alpha, bb;
+    for(j=NUM-1;j>=0;j--){
+      frac=NUM>1?j/(NUM-1):0;
+      pp=0.5-0.5*Math.cos(((pulsePhase+frac*0.55)%1)*Math.PI*2);
+      nat=BASE_SIZE+(MAX_SIZE-BASE_SIZE)*frac;
+      sz=nat+(MAX_SIZE-nat)*pp*0.9;
+      if(layer===MIRROR_LAYERS-1&&bulgeFactor>0){ sz*=(1+bulgeFactor*0.35); }
+      cubeHue=hueShift+Math.sin(hueT*3.1+frac*Math.PI)*0.08;
+      col=getColor(j,cubeHue);
+      alpha=(0.7+0.3*pp)*al;
+      bb=layer===MIRROR_LAYERS-1&&bulgeFactor>0 ? bulgeFactor : (0.12+Math.sin(hueT*1.3+frac*Math.PI)*0.06);
+      drawCube(j,sz,anglesY[j],anglesX[j],anglesZ[j],alpha,col,cx,cy,t,bb);
+    }
+    ctx.restore();
+  }
+}
+
+animate();
+
+</script>
+</body>
+</html>
