@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Minder Singh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@300&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+canvas { position: fixed; top: 0; left: 0; }
+#main  { z-index: 1; }
+#text  { z-index: 2; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="main"></canvas>
+<canvas id="text"></canvas>
+<script>
+
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+
+var FOV          = 1800;
+var INNER_SPEED  = 0.014;
+var MIRROR_LAYERS = 5;
+var EXPLODE_DUR  = 1.8;
+
+var SCHEMES = [
+  [[255,255,255],[255,255,  0],[255,128,  0],[255,  0,  0]],
+  [[  0,255,255],[  0,128,255],[128,  0,255],[255,  0,200]],
+  [[200,255,  0],[  0,255,100],[  0,200,180],[  0, 80,255]],
+  [[255,  0,128],[255,100,  0],[255,220,  0],[255,255,255]],
+  [[255, 20,  0],[220,  0,180],[120,  0,255],[ 20,  0,180]],
+  [[255,200,  0],[160,255,  0],[  0,255,220],[  0,180,255]]
+];
+
+var BASE_VERTS = [
+  [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
+  [-1,-1, 1],[1,-1, 1],[1,1, 1],[-1,1, 1]
+];
+var EDGES = [
+  [0,1],[1,2],[2,3],[3,0],
+  [4,5],[5,6],[6,7],[7,4],
+  [0,4],[1,5],[2,6],[3,7]
+];
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+
+var W, H, DPR;
+var NUM = 25;
+var anglesY=[], anglesX=[], anglesZ=[];
+var speedY=[],  speedX=[],  speedZ=[];
+var dirY=[],    dirX=[],    dirZ=[];
+var seeds=[];
+var currentScheme=0, nextScheme=1, schemeBlend=0;
+var t=0, bgT=0, hueT=0;
+var explodeT=0, syncBlend=0;
+
+// ─── CANVAS SETUP ────────────────────────────────────────────────────────────
+
+var mainCanvas = document.getElementById('main');
+var ctx        = mainCanvas.getContext('2d');
+var textCanvas = document.getElementById('text');
+var tCtx       = textCanvas.getContext('2d');
+
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  W   = window.innerWidth;
+  H   = window.innerHeight;
+  [mainCanvas, textCanvas].forEach(function(c) {
+    c.width        = Math.floor(W * DPR);
+    c.height       = Math.floor(H * DPR);
+    c.style.width  = W + 'px';
+    c.style.height = H + 'px';
+  });
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─── CUBE INIT ───────────────────────────────────────────────────────────────
+
+function initCubes(n) {
+  NUM = n;
+  anglesY=[]; anglesX=[]; anglesZ=[];
+  speedY=[];  speedX=[];  speedZ=[];
+  dirY=[];    dirX=[];    dirZ=[];
+  seeds=[];
+  for (var j=0; j<NUM; j++) {
+    anglesY.push((j/NUM) * Math.PI * 2);
+    anglesX.push((j/NUM) * Math.PI * 2 * 0.618);
+    anglesZ.push((j/NUM) * Math.PI * 2 * 0.382);
+    speedY.push(INNER_SPEED * Math.pow(0.99, j));
+    speedX.push(INNER_SPEED * Math.pow(0.99, j) * (0.4 + Math.random()*0.5));
+    speedZ.push(INNER_SPEED * Math.pow(0.99, j) * (0.2 + Math.random()*0.4));
+    dirY.push(j%2 ? -1 : 1);
+    dirX.push(j%2 ?  1 :-1);
+    dirZ.push(j%3===0 ? 1 : j%3===1 ? -1 : 1);
+    seeds.push(Math.random() * 100);
+  }
+}
+initCubes(25);
+
+// ─── MATH ────────────────────────────────────────────────────────────────────
+
+function lerp(a,b,f)  { return a+(b-a)*f; }
+function clamp(v,a,b) { return Math.max(a,Math.min(b,v)); }
+function easeIO(x)    { return x<0.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2; }
+
+function lerpRGB(a,b,f) {
+  return [Math.round(a[0]+(b[0]-a[0])*f), Math.round(a[1]+(b[1]-a[1])*f), Math.round(a[2]+(b[2]-a[2])*f)];
+}
+
+function sampleScheme(s, tc) {
+  var stops = SCHEMES[s];
+  var seg   = tc * (stops.length-1);
+  var idx   = Math.min(Math.floor(seg), stops.length-2);
+  return lerpRGB(stops[idx], stops[idx+1], seg-idx);
+}
+
+function getColor(i, hueShift) {
+  var tc  = NUM>1 ? i/(NUM-1) : 0;
+  var col = lerpRGB(sampleScheme(currentScheme,tc), sampleScheme(nextScheme,tc), schemeBlend);
+  var sh  = hueShift * Math.PI * 2;
+  var r=col[0]/255, g=col[1]/255, b=col[2]/255;
+  var c=Math.cos(sh), s=Math.sin(sh);
+  var nr = r*(0.213+c*0.787-s*0.213)+g*(0.715-c*0.715-s*0.715)+b*(0.072-c*0.072+s*0.928);
+  var ng = r*(0.213-c*0.213+s*0.143)+g*(0.715+c*0.285+s*0.140)+b*(0.072-c*0.072-s*0.283);
+  var nb = r*(0.213-c*0.213-s*0.787)+g*(0.715-c*0.715+s*0.715)+b*(0.072+c*0.928+s*0.072);
+  return 'rgb('+Math.round(clamp(nr*255,0,255))+','+Math.round(clamp(ng*255,0,255))+','+Math.round(clamp(nb*255,0,255))+')';
+}
+
+// ─── NOISE ───────────────────────────────────────────────────────────────────
+
+function hash(x,y,z) {
+  var ix=Math.floor(x), iy=Math.floor(y), iz=Math.floor(z);
+  return Math.sin(ix*127.1+iy*311.7+iz*74.9)*43758.5453%1;
+}
+function smooth(t) { return t*t*(3-2*t); }
+
+function vnoise(x,y,z) {
+  var ix=Math.floor(x), iy=Math.floor(y), iz=Math.floor(z);
+  var fx=x-ix, fy=y-iy, fz=z-iz;
+  var ux=smooth(fx), uy=smooth(fy), uz=smooth(fz);
+  var a=hash(ix,iy,iz),   b=hash(ix+1,iy,iz),   c=hash(ix,iy+1,iz),   d=hash(ix+1,iy+1,iz);
+  var e=hash(ix,iy,iz+1), f=hash(ix+1,iy,iz+1), g=hash(ix,iy+1,iz+1), h=hash(ix+1,iy+1,iz+1);
+  return (a+ux*(b-a)+uy*(c+ux*(d-c)-a-ux*(b-a))) + uz*((e+ux*(f-e)+uy*(g+ux*(h-g)-e-ux*(f-e)))-(a+ux*(b-a)+uy*(c+ux*(d-c)-a-ux*(b-a))));
+}
+
+function fbm(x,y,z) {
+  var v=0, amp=0.5, freq=1;
+  for (var i=0; i<3; i++) { v+=vnoise(x*freq,y*freq,z*freq)*amp; freq*=2.1; amp*=0.48; }
+  return v;
+}
+
+// ─── 3D TRANSFORMS ───────────────────────────────────────────────────────────
+
+function rotY(v,a) { var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [c*x+s*z,y,-s*x+c*z]; }
+function rotX(v,a) { var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [x,c*y-s*z,s*y+c*z]; }
+function rotZ(v,a) { var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a); return [c*x-s*y,s*x+c*y,z]; }
+function project(v) { var s=FOV/(FOV+v[2]); return [v[0]*s,v[1]*s]; }
+
+// ─── DRAW CUBE ───────────────────────────────────────────────────────────────
+
+function drawCube(ci, size, ay, ax, az, alpha, color, cx, cy, T, bulge) {
+  var pts=[], p, i, e, ai, bi;
+  var deform = size * 0.18 * (ci / (NUM>1 ? NUM-1 : 1));
+  var sd = seeds[ci];
+
+  for (i=0; i<8; i++) {
+    var v = BASE_VERTS[i];
+    var nx=v[0]*1.3+T*0.1+sd, ny=v[1]*1.3+T*0.08+sd*0.7, nz=v[2]*1.3+T*0.06+sd*1.3;
+    p = [
+      v[0]*size + (fbm(nx,      ny+3.7,nz+1.3)-0.5)*2*deform,
+      v[1]*size + (fbm(nx+5.2,  ny,    nz+8.1)-0.5)*2*deform,
+      v[2]*size + (fbm(nx+2.9,  ny+7.4,nz    )-0.5)*2*deform
+    ];
+    p = rotY(p,ay); p = rotX(p,ax); p = rotZ(p,az);
+    pts.push(project(p));
+  }
+
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 1;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+
+  for (e=0; e<12; e++) {
+    ai=EDGES[e][0]; bi=EDGES[e][1];
+    var x1=cx+pts[ai][0], y1=cy+pts[ai][1];
+    var x2=cx+pts[bi][0], y2=cy+pts[bi][1];
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    if (bulge>0.01) {
+      var mx=(x1+x2)*0.5, my=(y1+y2)*0.5;
+      var ox=mx-cx, oy=my-cy;
+      var ln=Math.sqrt(ox*ox+oy*oy);
+      if (ln>0.1) { ox/=ln; oy/=ln; }
+      var el=Math.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
+      ctx.quadraticCurveTo(mx+ox*el*bulge*0.6, my+oy*el*bulge*0.6, x2, y2);
+    } else {
+      ctx.lineTo(x2,y2);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ─── TOUCH / EXPLODE ─────────────────────────────────────────────────────────
+
+function randomizeMotion() {
+  for (var j=0; j<NUM; j++) {
+    dirY[j]   = Math.random()<0.5 ? 1 : -1;
+    dirX[j]   = Math.random()<0.5 ? 1 : -1;
+    dirZ[j]   = Math.random()<0.5 ? 1 : -1;
+    speedX[j] = INNER_SPEED * Math.pow(0.99,j) * (0.3+Math.random()*0.7);
+    speedZ[j] = INNER_SPEED * Math.pow(0.99,j) * (0.1+Math.random()*0.5);
+    seeds[j]  = Math.random()*100;
+  }
+  currentScheme = nextScheme;
+  schemeBlend   = 0;
+}
+
+function onTouch(e) {
+  e.preventDefault();
+  var minN=8, maxN=120;
+  var n=Math.round(Math.exp(Math.log(minN)+Math.random()*Math.log(maxN/minN)));
+  initCubes(clamp(n, minN, maxN));
+  explodeT   = EXPLODE_DUR;
+  syncBlend  = 0;
+  nextScheme = (currentScheme+1+Math.floor(Math.random()*(SCHEMES.length-1))) % SCHEMES.length;
+}
+
+mainCanvas.addEventListener('touchstart', onTouch, {passive:false});
+mainCanvas.addEventListener('mousedown',  onTouch);
+
+// ─── MAIN LOOP ───────────────────────────────────────────────────────────────
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  var dt=0.006;
+  t+=dt; bgT+=0.003; hueT+=0.0008;
+
+  // Explosion
+  var bulge=0;
+  if (explodeT>0) {
+    explodeT -= dt;
+    var prog = 1-(explodeT/EXPLODE_DUR);
+    bulge      = Math.sin(prog*Math.PI)*(1-prog*0.3);
+    syncBlend  = Math.min(1, prog*2.5);
+    schemeBlend= syncBlend;
+    if (prog>=0.45 && prog<0.46 && syncBlend>0.8) randomizeMotion();
+    if (explodeT<=0) { explodeT=0; bulge=0; }
+  }
+
+  // Advance rotations
+  for (var i=0; i<NUM; i++) {
+    if (syncBlend>0.01 && explodeT>0) {
+      var pull = syncBlend*0.06;
+      anglesY[i] += speedY[i]*dirY[i]*(1-syncBlend*0.8) - anglesY[i]*pull;
+      anglesX[i] += speedX[i]*dirX[i]*(1-syncBlend*0.8) - anglesX[i]*pull;
+      anglesZ[i] += speedZ[i]*dirZ[i]*(1-syncBlend*0.8) - anglesZ[i]*pull;
+    } else {
+      anglesY[i] += speedY[i]*dirY[i];
+      anglesX[i] += speedX[i]*dirX[i];
+      anglesZ[i] += speedZ[i]*dirZ[i];
+    }
+  }
+
+  // Background
+  ctx.save();
+  ctx.scale(DPR,DPR);
+  var bp = (Math.sin(bgT)+1)/2;
+  var bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0, 'rgb('+Math.round(lerp(3,12,bp))+','+Math.round(lerp(5,18,bp))+','+Math.round(lerp(30,70,bp))+')');
+  bg.addColorStop(1, 'rgb('+Math.round(lerp(1, 3,bp))+','+Math.round(lerp(1, 5,bp))+','+Math.round(lerp(10,25,bp))+')');
+  ctx.fillStyle=bg;
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
+
+  // Infinity mirror
+  var BASE_SIZE   = Math.min(W,H)*0.018;
+  var MAX_SIZE    = Math.min(W,H)*0.44;
+  var pulsePhase  = (t/8)%1;
+  var hueShift    = Math.sin(hueT)*0.15;
+  var cx=W/2, cy=H/2;
+
+  for (var layer=MIRROR_LAYERS-1; layer>=0; layer--) {
+    var depth = layer/(MIRROR_LAYERS-1);
+    var sc    = 0.55+depth*0.45;
+    var al    = 0.15+depth*0.85;
+    var isFront = layer===MIRROR_LAYERS-1;
+
+    ctx.save();
+    ctx.scale(DPR,DPR);
+    ctx.translate(cx*(1-sc), cy*(1-sc));
+    ctx.scale(sc,sc);
+
+    for (var j=NUM-1; j>=0; j--) {
+      var frac = NUM>1 ? j/(NUM-1) : 0;
+      var pp   = 0.5-0.5*Math.cos(((pulsePhase+frac*0.55)%1)*Math.PI*2);
+      var nat  = BASE_SIZE+(MAX_SIZE-BASE_SIZE)*frac;
+      var sz   = nat+(MAX_SIZE-nat)*pp*0.9;
+      if (isFront && bulge>0) sz *= (1+bulge*0.35);
+      var bb   = isFront && bulge>0 ? bulge : 0.12+Math.sin(hueT*1.3+frac*Math.PI)*0.06;
+      drawCube(j, sz, anglesY[j], anglesX[j], anglesZ[j],
+        (0.7+0.3*pp)*al,
+        getColor(j, hueShift+Math.sin(hueT*3.1+frac*Math.PI)*0.08),
+        cx, cy, t, bb);
+    }
+    ctx.restore();
+  }
+}
+
+// ─── TEXT OVERLAY ────────────────────────────────────────────────────────────
+
+var CYCLE_MS   = 39000;
+var nameShuffleFrame = 0;
+var nameDisplay = "Minder Singh";
+var charSizes = [];
+for (var csi = 0; csi < 12; csi++) charSizes.push(1.0); // init
+var sizeFrame = 0;
+var cycleStart = Date.now();
+
+function easeInOut(x) { return x<0.5 ? 4*x*x*x : 1-Math.pow(-2*x+2,3)/2; }
+
+
+
+
+// ── MOBY DICK CH.13 + ASCII SCRAMBLE ────────────────────────────────────────
+var MOBY_WORDS = ("Queequeg and I had now been in company for a long time but my chief mate thought that we should now put on a warm coat and a pair of boots for the weather was growing cold now ishmael said I to myself there is every reason in the world why I should not go to sea in a whale ship to see the watery part of the world now is it that by his art as a pilot of the living God who slid those sidelong sights to see his miserableness drive him from all haven astern a whale ship was my Yale College and my Harvard for there is nothing so very surprising in this considering that the largest part of the earth is water and the mightiest whales have made their home in the deeps of the deep blue sea and the first sailors who ventured out upon the lone Atlantic were men born in inland valleys their thoughts of the sea were as new as the thought of air to a mountain man").split(' ');
+
+var ASCII_CHARS = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\\░▒▓█▄▀■□▪▫◆◇○●★☆♦♠♣♥∞≈≠±×÷←→↑↓↔▲▼◀▶';
+
+// Character-level scramble buffer — filled to max line width
+var CHAR_COUNT    = 80;
+var scrambleChars = [];
+var scrambleSrc   = []; // source moby chars
+var scrambleFrame = 0;
+
+// Build source string from moby words
+var mobyStr = MOBY_WORDS.join(' ');
+
+for (var si = 0; si < CHAR_COUNT; si++) {
+  scrambleChars.push(mobyStr[si % mobyStr.length]);
+  scrambleSrc.push(mobyStr[si % mobyStr.length]);
+}
+
+function getScrambleLine() {
+  scrambleFrame++;
+
+  // Every frame: randomly flip some characters to ASCII noise, some back to moby
+  for (var ci = 0; ci < CHAR_COUNT; ci++) {
+    var r = Math.random();
+    if (r < 0.08) {
+      // Swap to random ASCII symbol
+      scrambleChars[ci] = ASCII_CHARS[Math.floor(Math.random() * ASCII_CHARS.length)];
+    } else if (r < 0.16) {
+      // Restore to moby source
+      scrambleChars[ci] = scrambleSrc[ci];
+    } else if (r < 0.20) {
+      // Shift source position (scrolls the underlying moby text)
+      var newPos = (ci + scrambleFrame) % mobyStr.length;
+      scrambleSrc[ci]   = mobyStr[newPos];
+      scrambleChars[ci] = scrambleSrc[ci];
+    }
+  }
+
+  return scrambleChars.join('');
+}
+
+function drawText() {
+  requestAnimationFrame(drawText);
+
+  var DPR2 = window.devicePixelRatio || 1;
+  var W2   = window.innerWidth;
+  var H2   = window.innerHeight;
+  var now  = Date.now();
+
+  tCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
+  tCtx.save();
+  tCtx.scale(DPR2, DPR2);
+
+  // 39-second cycle 0->1
+  var rawT   = ((now - cycleStart) % CYCLE_MS) / CYCLE_MS;
+  var easedT = easeInOut(rawT);
+
+  // Font shrinks 20->2pt over full cycle
+  var fontSize = 20 + (2 - 20) * easedT;
+
+  // 5s fade in, 5s fade out
+  var FADE = 5000 / CYCLE_MS;
+  var opacity;
+  if      (rawT < FADE)        opacity = easeInOut(rawT / FADE);
+  else if (rawT < 1.0 - FADE)  opacity = 1.0;
+  else                          opacity = easeInOut((1.0 - rawT) / FADE);
+
+  // Padding proportional to font size
+  var pad = 12 * (fontSize / 20);
+  var cx2 = W2 / 2;
+  var cy2 = H2 / 2;
+
+  // Letter spacing expands from -0.02em → 0.20em as font shrinks
+  var letterSp = (-0.02 + 0.62 * easedT).toFixed(3) + 'em';
+  tCtx.font          = '300 ' + fontSize + "px 'IBM Plex Serif', Georgia, serif";
+  tCtx.letterSpacing = letterSp;
+  tCtx.textAlign     = 'center';
+  tCtx.textBaseline  = 'middle';
+
+  var name  = 'Minder Singh';
+  var nameW = tCtx.measureText(name).width;
+  var bw    = nameW + pad * 2;
+  var bh    = fontSize + pad * 2;
+  var bx    = cx2 - bw / 2;
+  var by    = cy2 - bh / 2;
+
+  // Box background
+  tCtx.globalAlpha = opacity * 0.05;
+  tCtx.fillStyle   = '#000';
+  tCtx.fillRect(bx, by, bw, bh);
+
+  // Name — shuffle case at 24fps, size at 12fps independently
+  nameShuffleFrame++;
+  sizeFrame++;
+  var NAME_SRC = 'MINDER SINGH';
+
+  // Update sizes at 12fps (every 5 frames)
+  if (sizeFrame % 5 === 0) {
+    charSizes = [];
+    for (var csi2 = 0; csi2 < NAME_SRC.length; csi2++) {
+      charSizes.push(0.80 + Math.random() * 0.40); // 80%-120%
+    }
+  }
+  if (charSizes.length < NAME_SRC.length) {
+    while (charSizes.length < NAME_SRC.length) charSizes.push(1.0);
+  }
+
+  nameDisplay = NAME_SRC.toUpperCase(); // all caps
+
+  // Draw each character individually with random ±10% size
+  tCtx.globalAlpha = opacity;
+  tCtx.fillStyle   = '#ffffff';
+  tCtx.textAlign   = 'left';
+
+  // First measure the full string at base size to find center start x
+  tCtx.font = '300 ' + fontSize + "px 'IBM Plex Serif', Georgia, serif";
+  var totalW = tCtx.measureText(nameDisplay).width;
+  var charX  = cx2 - totalW / 2;
+
+  for (var di = 0; di < nameDisplay.length; di++) {
+    var charCh   = nameDisplay[di];
+    var varSize  = fontSize * charSizes[di];
+    tCtx.font    = '300 ' + varSize + "px 'IBM Plex Serif', Georgia, serif";
+    tCtx.fillText(charCh, charX, cy2);
+    charX += tCtx.measureText(charCh).width;
+  }
+  tCtx.textAlign = 'center';
+
+  // Horizontal rule with margins, 40% opacity, moved up
+  var ruleY  = H2 - 34;
+  var margin = 12;
+  var copyY2 = H2 - 14;
+  tCtx.globalAlpha = 0.40;
+  tCtx.strokeStyle = '#fff';
+  tCtx.lineWidth   = 0.25;
+  tCtx.beginPath();
+  tCtx.moveTo(margin, ruleY);
+  tCtx.lineTo(W2 - margin, ruleY);
+  tCtx.stroke();
+
+  // Copyright — right-justified
+  tCtx.globalAlpha   = 1.0;
+  tCtx.font          = '400 11px "Courier New", monospace';
+  tCtx.letterSpacing = '0em';
+  tCtx.textAlign     = 'right';
+  tCtx.fillStyle     = '#fff';
+  tCtx.fillText('\u00a9 2026', W2 - margin, copyY2);
+
+  // Wireframe globe — bottom left, same baseline as copyright
+  // Live clock with milliseconds — bottom left
+  var now2    = new Date();
+  var hh      = String(now2.getHours()).padStart(2,'0');
+  var mm      = String(now2.getMinutes()).padStart(2,'0');
+  var ss      = String(now2.getSeconds()).padStart(2,'0');
+  var ms      = String(now2.getMilliseconds()).padStart(3,'0');
+  var dd      = String(now2.getDate()).padStart(2,'0');
+  var mo      = String(now2.getMonth()+1).padStart(2,'0');
+  var yyyy    = now2.getFullYear();
+  var dateStr = yyyy + '.' + mo + '.' + dd;
+  var timeStr = hh + ':' + mm + ':' + ss + '.' + ms;
+  tCtx.globalAlpha   = 1.0;
+  tCtx.fillStyle     = '#ffffff';
+  tCtx.font          = '400 11px "Courier New", monospace';
+  tCtx.letterSpacing = '0em';
+  tCtx.textAlign     = 'left';
+  tCtx.fillText(dateStr + '  ' + timeStr, margin, copyY2);
+
+  // Moby Dick text — top of screen
+  tCtx.globalAlpha   = 1.0;
+  tCtx.fillStyle     = '#ffffff';
+  tCtx.font          = '400 11px "Courier New", monospace';
+  tCtx.letterSpacing = '0em';
+  tCtx.textAlign     = 'left';
+  tCtx.fillText(getScrambleLine().substring(0, Math.floor((W2 - margin * 2) / 6.6)), margin, 20);
+
+  tCtx.restore();
+}
+
+animate();
+drawText();
+
+</script>
+</body>
+</html>
