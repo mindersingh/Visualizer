@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Neon Sphere</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; width: 100vw; height: 100vh; }
+  canvas { position: fixed; top: 0; left: 0; display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+var canvas = document.getElementById('c');
+var ctx    = canvas.getContext('2d');
+var W, H, DPR, CX, CY;
+var prevT = 0, t = 0;
+
+var NUM        = 10;
+var LATITUDES  = 10;
+var LONGITUDES = 10;
+var SEGMENTS   = 60;
+var FOV        = 900;
+var BASE_SPEED = 0.025;
+
+// ── STATE MACHINE ─────────────────────────────
+// ‘idle’      : all spheres at center
+// ‘scattered’ : spring-physics yoyo wandering
+// ‘returning’ : snapping back to center
+var mode = ‘idle’;
+var returnT = 0;
+var RETURN_DUR = 2.0;
+
+// ── noise ─────────────────────────────────────
+function hash(n) { var x=Math.sin(n)*43758.5453; return x-Math.floor(x); }
+function noise1(x) { var i=Math.floor(x),f=x-i,u=f*f*(3-2*f); return hash(i)*(1-u)+hash(i+1)*u; }
+function fbm(x) { var v=0,a=0.5,f=1; for(var o=0;o<5;o++){v+=noise1(x*f)*a;f*=2.1;a*=0.5;} return v; }
+
+// ── spheres ───────────────────────────────────
+var spheres = [];
+for (var k=0; k<NUM; k++) {
+spheres.push({
+aY: 0, aX: 0, aZ: 0,        // rotation angles on all three axes
+spinY: (k%2===0?1:-1)*0.025, // base spin rates (set on burst)
+spinX: 0, spinZ: 0,
+seed:  Math.random()*200,
+px: 0, py: 0,
+vx: 0, vy: 0,
+ax: 0, ay: 0,
+anchorT: 0
+});
+}
+
+// ── stars ─────────────────────────────────────
+var STAR_COUNT = 280;
+var stars = [];
+function initStars() {
+stars = [];
+for (var s=0; s<STAR_COUNT; s++) {
+stars.push({
+x: Math.random()*W, y: Math.random()*H,
+r: 0.08+Math.random()*0.22,
+phase: Math.random()*Math.PI*2,
+speed: 0.4+Math.random()*2.8,
+blue: Math.random()<0.45
+});
+}
+}
+function drawStars() {
+for (var s=0; s<stars.length; s++) {
+var st=stars[s];
+var tw=0.2+0.8*Math.pow(0.5+0.5*Math.sin(t*st.speed+st.phase),2);
+ctx.beginPath();
+ctx.arc(st.x,st.y,st.r,0,Math.PI*2);
+ctx.fillStyle=st.blue?‘rgba(180,215,255,’+(tw*0.85).toFixed(3)+’)’:‘rgba(255,255,255,’+(tw*0.85).toFixed(3)+’)’;
+ctx.fill();
+}
+}
+
+// ── resize ────────────────────────────────────
+function resize() {
+DPR=window.devicePixelRatio||1;
+W=window.innerWidth; H=window.innerHeight; CX=W/2; CY=H/2;
+canvas.width=Math.floor(W*DPR); canvas.height=Math.floor(H*DPR);
+canvas.style.width=W+‘px’; canvas.style.height=H+‘px’;
+initStars();
+}
+
+// ── 3d ────────────────────────────────────────
+function rotY(v,a){var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a);return[c*x+s*z,y,-s*x+c*z];}
+function rotX(v,a){var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a);return[x,c*y-s*z,s*y+c*z];}
+function project(v){var sc=FOV/(FOV+v[2]+200);return[v[0]*sc,v[1]*sc];}
+
+// ── easing ────────────────────────────────────
+// Very bouncy elastic — lots of oscillation
+function easeOutElasticBig(x) {
+if(x<=0) return 0; if(x>=1) return 1;
+var c = (2*Math.PI)/2.5; // tighter period = more bounces
+return Math.pow(2,-8*x)*Math.sin((x*12-0.75)*c)+1;
+}
+function easeOutCubic(x) { return 1-Math.pow(1-x,3); }
+
+// ── anchor helpers ────────────────────────────
+function pickAnchor(sp, i) {
+// Wild spread: full random angle, large distances
+var ang  = Math.random()*Math.PI*2;
+var dist = (0.32+Math.random()*0.42)*Math.min(W,H); // 32–74% of viewport
+sp.ax = Math.cos(ang)*dist;
+sp.ay = Math.sin(ang)*dist;
+sp.anchorT = 2.5 + Math.random()*3.5;
+}
+
+// ── interaction ───────────────────────────────
+function onInteract() {
+if (mode === ‘idle’) {
+// First click: scatter
+mode = ‘scattered’;
+for (var i=0; i<NUM; i++) {
+var sp=spheres[i];
+sp.dir *= -1;
+sp.seed = Math.random()*500+t*13;
+// Wild initial burst — full random direction, bigger push
+var ang = Math.random()*Math.PI*2;
+var spd = (0.18+Math.random()*0.28)*Math.min(W,H);
+sp.vx = Math.cos(ang)*spd;
+sp.vy = Math.sin(ang)*spd;
+sp.px = 0; sp.py = 0;
+// Spin rates tied to burst speed — faster burst = faster spin
+var spdFrac = spd / (Math.min(W,H)*0.46);
+var baseRate = 0.015 + spdFrac*0.18;
+sp.spinY = baseRate*(Math.random()<0.5?1:-1)*(0.6+Math.random()*0.8);
+sp.spinX = baseRate*(Math.random()<0.5?1:-1)*(0.4+Math.random()*1.0);
+sp.spinZ = baseRate*(Math.random()<0.5?1:-1)*(0.2+Math.random()*0.6);
+pickAnchor(sp, i);
+}
+} else if (mode === ‘scattered’) {
+// Second click: return
+mode = ‘returning’;
+returnT = 0;
+for (var i=0; i<NUM; i++) {
+var sp=spheres[i]; sp.dir *= -1;
+}
+} else if (mode === ‘returning’) {
+// Third click during return: restart scatter
+mode = ‘scattered’;
+for (var i=0; i<NUM; i++) {
+var sp=spheres[i];
+sp.seed=Math.random()*500+t*13;
+pickAnchor(sp, i);
+}
+}
+}
+
+// ── fire color ────────────────────────────────
+function fireColor(frac, time, idx) {
+var p1=Math.sin(time*2.8+frac*Math.PI*3.1)*0.22;
+var p2=Math.sin(time*1.1+idx*0.9+frac*Math.PI)*0.15;
+var p3=Math.sin(time*5.2+idx*2.1)*0.09;
+var f=Math.min(1,Math.max(0,frac+p1+p2+p3));
+var r,g,b;
+if(f<0.35){var s=f/0.35;r=(180+s*75)|0;g=(s*28)|0;b=0;}
+else if(f<0.65){var s=(f-0.35)/0.30;r=255;g=(28+s*127)|0;b=0;}
+else{var s=(f-0.65)/0.35;r=255;g=(155+s*100)|0;b=(s*s*65)|0;}
+var br=0.82+0.18*Math.sin(time*3.7+idx*2.3);
+return[Math.min(255,r*br|0),Math.min(255,g*br|0),Math.min(255,b*br|0)];
+}
+
+// ── background ────────────────────────────────
+function drawBackground(pulse) {
+var cycle=(t%12)/12;
+var r,g,b;
+if(cycle<0.333){var s=cycle/0.333;r=0;g=(((1-s)*30)|0);b=((s*28)|0);}
+else if(cycle<0.666){var s=(cycle-0.333)/0.333;r=((s*32)|0);g=0;b=(((1-s)*28)|0);}
+else{var s=(cycle-0.666)/0.334;r=(((1-s)*32)|0);g=((s*30)|0);b=0;}
+var bright=0.75+0.25*pulse;
+var rc=(r*bright)|0,gc=(g*bright)|0,bc=(b*bright)|0;
+var rm=Math.min(255,(rc*1.7+6)|0),gm=Math.min(255,(gc*1.7+6)|0),bm=Math.min(255,(bc*1.7+6)|0);
+var gr=ctx.createRadialGradient(CX,CY,0,CX,CY,Math.max(W,H)*0.82);
+gr.addColorStop(0,‘rgb(’+rm+’,’+gm+’,’+bm+’)’);
+gr.addColorStop(0.6,‘rgb(’+rc+’,’+gc+’,’+bc+’)’);
+gr.addColorStop(1,‘rgb(0,0,0)’);
+ctx.fillStyle=gr; ctx.fillRect(0,0,W,H);
+}
+
+function rotZ(v,a){var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a);return[c*x-s*y,s*x+c*y,z];}
+
+// ── path building ─────────────────────────────
+function buildPaths(sp, radius) {
+var paths=[], i,j,v,p,pts;
+for(i=1;i<=LATITUDES;i++){
+var phi=(i/(LATITUDES+1))*Math.PI,rR=radius*Math.sin(phi),rYv=radius*Math.cos(phi);
+pts=[];
+for(j=0;j<=SEGMENTS;j++){
+var theta=(j/SEGMENTS)*Math.PI*2;
+v=[rR*Math.cos(theta),rYv,rR*Math.sin(theta)];
+v=rotY(v,sp.aY); v=rotX(v,sp.aX); v=rotZ(v,sp.aZ);
+p=project(v); pts.push([p[0],p[1]]);
+}
+paths.push(pts);
+}
+for(i=0;i<LONGITUDES;i++){
+var t0=(i/LONGITUDES)*Math.PI*2; pts=[];
+for(j=0;j<=SEGMENTS;j++){
+var ph2=(j/SEGMENTS)*Math.PI;
+v=[radius*Math.sin(ph2)*Math.cos(t0),radius*Math.cos(ph2),radius*Math.sin(ph2)*Math.sin(t0)];
+v=rotY(v,sp.aY); v=rotX(v,sp.aX); v=rotZ(v,sp.aZ);
+p=project(v); pts.push([p[0],p[1]]);
+}
+paths.push(pts);
+}
+return paths;
+}
+
+function strokePaths(paths, drawX, drawY, sc, col, lw, alpha) {
+ctx.save();
+ctx.translate(drawX, drawY);
+ctx.scale(sc, sc);
+ctx.strokeStyle=‘rgba(’+col[0]+’,’+col[1]+’,’+col[2]+’,’+alpha+’)’;
+ctx.lineWidth=lw; ctx.shadowBlur=0;
+ctx.beginPath();
+for(var pi=0;pi<paths.length;pi++){
+var pts=paths[pi];
+ctx.moveTo(pts[0][0],pts[0][1]);
+for(var qi=1;qi<pts.length;qi++) ctx.lineTo(pts[qi][0],pts[qi][1]);
+}
+ctx.stroke();
+ctx.restore();
+}
+
+// ── animate ───────────────────────────────────
+function animate(ts) {
+requestAnimationFrame(animate);
+var dt=Math.min((ts-prevT)*0.001,0.05); prevT=ts; t+=dt;
+
+var pulse=0.5+0.5*Math.sin(t*1.6);
+ctx.setTransform(DPR,0,0,DPR,0,0);
+drawBackground(pulse);
+drawStars();
+
+var baseRadius=Math.min(W,H)*0.15;
+var spDrawX=[], spDrawY=[], spSc=[], spAlp=[], spCol=[];
+var showStrings = (mode===‘scattered’||mode===‘returning’);
+
+// Advance return timer
+if(mode===‘returning’){
+returnT+=dt;
+if(returnT>=RETURN_DUR){ mode=‘idle’; returnT=0; }
+}
+
+for(var i=0;i<NUM;i++){
+var sp=spheres[i];
+var frac=i/(NUM-1);
+// 3-axis rotation — rates set at burst time
+sp.aY += sp.spinY*(dt/0.016);
+sp.aX += sp.spinX*(dt/0.016);
+sp.aZ += sp.spinZ*(dt/0.016);
+
+```
+var drawX=CX, drawY=CY, sc=1, alp=1;
+
+if(mode==='scattered'){
+  // Re-pick anchor periodically
+  sp.anchorT-=dt;
+  if(sp.anchorT<=0) pickAnchor(sp,i);
+
+  // Underdamped spring: low stiffness + low damping = slow, elastic, bouncy
+  // stiffness ~1.1–1.8 gives long lazy oscillations (~4–6s period)
+  var stiff = 1.1 + i*0.07;
+  var damp  = 0.55 + i*0.03; // well underdamped: rings many times
+
+  sp.vx += (sp.ax - sp.px)*stiff*dt - sp.vx*damp*dt;
+  sp.vy += (sp.ay - sp.py)*stiff*dt - sp.vy*damp*dt;
+  sp.px += sp.vx*dt;
+  sp.py += sp.vy*dt;
+
+  // Soft boundary: gentle nudge back if too far
+  var d=Math.sqrt(sp.px*sp.px+sp.py*sp.py);
+  var limit=Math.min(W,H)*0.76;
+  if(d>limit){
+    var over=(d-limit)/limit;
+    sp.vx-=(sp.px/d)*over*stiff*3*dt;
+    sp.vy-=(sp.py/d)*over*stiff*3*dt;
+  }
+
+  drawX=CX+sp.px; drawY=CY+sp.py;
+  // Scale subtly follows speed
+  var spd=Math.sqrt(sp.vx*sp.vx+sp.vy*sp.vy);
+  sc=0.85+0.4*(spd/(Math.min(W,H)*0.5));
+  alp=0.8+0.2*Math.sin(t*1.3+i*0.9);
+
+} else if(mode==='returning'){
+  // Spring snaps to center: stiffer + still underdamped = bouncy 2s return
+  var stiffR = 12 + i*1.0;
+  var dampR  = 2.2; // low damping = visible oscillation on the way home
+
+  sp.vx += (0 - sp.px)*stiffR*dt - sp.vx*dampR*dt;
+  sp.vy += (0 - sp.py)*stiffR*dt - sp.vy*dampR*dt;
+  sp.px += sp.vx*dt;
+  sp.py += sp.vy*dt;
+
+  drawX=CX+sp.px; drawY=CY+sp.py;
+  var spd2=Math.sqrt(sp.vx*sp.vx+sp.vy*sp.vy);
+  sc=0.85+0.35*(spd2/(Math.min(W,H)*0.5));
+  var rp=Math.min(1,returnT/RETURN_DUR);
+  alp=0.6+0.4*easeOutCubic(rp);
+
+} else {
+  // Idle: gently bleed off any remaining velocity
+  sp.vx*=0.88; sp.vy*=0.88;
+  sp.px+=sp.vx*dt; sp.py+=sp.vy*dt;
+  drawX=CX+sp.px; drawY=CY+sp.py;
+  sc=1; alp=1;
+}
+
+spDrawX.push(drawX); spDrawY.push(drawY);
+spSc.push(sc); spAlp.push(alp);
+spCol.push(fireColor(frac,t,i));
+```
+
+}
+
+// Strings — attach to the perimeter of each sphere facing the center
+// visR = perspective_scale * 3d_radius * draw_scale
+// perspective_scale for equator point (z=0): FOV/(FOV+200)
+var perspScale = FOV/(FOV+200);
+if(showStrings){
+for(var i=0;i<NUM;i++){
+var col=spCol[i];
+var dx=spDrawX[i]-CX, dy=spDrawY[i]-CY;
+var d=Math.sqrt(dx*dx+dy*dy);
+var sa=Math.min(1,d/(Math.min(W,H)*0.04))*spAlp[i];
+if(sa<0.01) continue;
+var visR = perspScale * baseRadius*Math.pow(0.9,i) * spSc[i];
+var nx = d>0 ? dx/d : 0, ny = d>0 ? dy/d : 0;
+// Endpoint: on the sphere surface closest to CX,CY
+var ex = spDrawX[i] - nx*visR;
+var ey = spDrawY[i] - ny*visR;
+ctx.save();
+ctx.strokeStyle=‘rgba(’+col[0]+’,’+col[1]+’,’+col[2]+’,’+sa+’)’;
+ctx.lineWidth=0.75; ctx.shadowBlur=0;
+ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(ex,ey); ctx.stroke();
+ctx.restore();
+}
+}
+
+// Spheres
+for(var i=0;i<NUM;i++){
+var sp=spheres[i];
+var radius=baseRadius*Math.pow(0.9,i);
+var paths=buildPaths(sp,radius);
+var ba=spAlp[i]*(0.85+0.15*pulse);
+strokePaths(paths,spDrawX[i],spDrawY[i],spSc[i],spCol[i],1.0-i*0.05,ba);
+}
+}
+
+window.addEventListener(‘resize’, resize);
+window.addEventListener(‘click’, onInteract);
+window.addEventListener(‘touchstart’,function(e){e.preventDefault();onInteract();},{passive:false});
+resize();
+requestAnimationFrame(function(ts){prevT=ts;animate(ts);});
+</script>
+
+</body>
+</html>
