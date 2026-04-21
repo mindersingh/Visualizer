@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html>
 <head>
 <meta charset="utf-8">
@@ -27,10 +26,10 @@ var FOV        = 900;
 var BASE_SPEED = 0.025;
 
 // ── STATE MACHINE ─────────────────────────────
-// ‘idle’      : all spheres at center
-// ‘scattered’ : spring-physics yoyo wandering
-// ‘returning’ : snapping back to center
-var mode = ‘idle’;
+// 'idle'      : all spheres at center
+// 'scattered' : spring-physics yoyo wandering
+// 'returning' : snapping back to center
+var mode = 'idle';
 var returnT = 0;
 var RETURN_DUR = 2.0;
 
@@ -42,31 +41,31 @@ function fbm(x) { var v=0,a=0.5,f=1; for(var o=0;o<5;o++){v+=noise1(x*f)*a;f*=2.
 // ── spheres ───────────────────────────────────
 var spheres = [];
 for (var k=0; k<NUM; k++) {
-spheres.push({
-aY: 0, aX: 0, aZ: 0,        // rotation angles on all three axes
-spinY: (k%2===0?1:-1)*0.025, // base spin rates (set on burst)
-spinX: 0, spinZ: 0,
-seed:  Math.random()*200,
-px: 0, py: 0,
-vx: 0, vy: 0,
-ax: 0, ay: 0,
-anchorT: 0
-});
+  spheres.push({
+    aY: 0, aX: 0, aZ: 0,        // rotation angles on all three axes
+    spinY: (k%2===0?1:-1)*0.025, // base spin rates (set on burst)
+    spinX: 0, spinZ: 0,
+    seed:  Math.random()*200,
+    px: 0, py: 0,
+    vx: 0, vy: 0,
+    ax: 0, ay: 0,
+    anchorT: 0
+  });
 }
 
 // ── blue sphere set ──────────────────────────
 var spheresB = [];
 for (var k=0; k<NUM; k++) {
-spheresB.push({
-aY: 0, aX: 0, aZ: 0,
-spinY: (k%2===0?-1:1)*0.025,  // opposite initial spin to red set
-spinX: 0, spinZ: 0,
-seed:  Math.random()*200+1000,
-px: 0, py: 0,
-vx: 0, vy: 0,
-ax: 0, ay: 0,
-anchorT: 0
-});
+  spheresB.push({
+    aY: 0, aX: 0, aZ: 0,
+    spinY: (k%2===0?-1:1)*0.025,  // opposite initial spin to red set
+    spinX: 0, spinZ: 0,
+    seed:  Math.random()*200+1000,
+    px: 0, py: 0,
+    vx: 0, vy: 0,
+    ax: 0, ay: 0,
+    anchorT: 0
+  });
 }
 
 // ── dots: white stars, blue dots, green pixels ─
@@ -76,78 +75,78 @@ var GREEN_COUNT = 55;
 var stars = [], blueDots = [], greenPixels = [];
 
 function initStars() {
-stars = [];
-for (var s=0; s<STAR_COUNT; s++) {
-stars.push({
-x: Math.random()*W, y: Math.random()*H,
-r: 0.08+Math.random()*0.18,
-phase: Math.random()*Math.PI*2,
-speed: 0.4+Math.random()*2.8
-});
-}
-blueDots = [];
-for (var b=0; b<BLUE_COUNT; b++) {
-blueDots.push({
-x: Math.random()*W, y: Math.random()*H,
-r: 0.06+Math.random()*0.16,
-phase: Math.random()*Math.PI*2,
-speed: 0.3+Math.random()*1.8
-});
-}
-greenPixels = [];
-for (var g=0; g<GREEN_COUNT; g++) {
-greenPixels.push({
-x: Math.random()*W, y: Math.random()*H,
-phase: Math.random()*Math.PI*2,
-speed: 0.8+Math.random()*3.5,
-size: 0.5+Math.random()*1.0
-});
-}
+  stars = [];
+  for (var s=0; s<STAR_COUNT; s++) {
+    stars.push({
+      x: Math.random()*W, y: Math.random()*H,
+      r: 0.08+Math.random()*0.18,
+      phase: Math.random()*Math.PI*2,
+      speed: 0.4+Math.random()*2.8
+    });
+  }
+  blueDots = [];
+  for (var b=0; b<BLUE_COUNT; b++) {
+    blueDots.push({
+      x: Math.random()*W, y: Math.random()*H,
+      r: 0.06+Math.random()*0.16,
+      phase: Math.random()*Math.PI*2,
+      speed: 0.3+Math.random()*1.8
+    });
+  }
+  greenPixels = [];
+  for (var g=0; g<GREEN_COUNT; g++) {
+    greenPixels.push({
+      x: Math.random()*W, y: Math.random()*H,
+      phase: Math.random()*Math.PI*2,
+      speed: 0.8+Math.random()*3.5,
+      size: 0.5+Math.random()*1.0
+    });
+  }
 }
 
 function drawStarsBack() {
-// Blue dots — drawn first (behind everything)
-for (var b=0; b<blueDots.length; b++) {
-var bd=blueDots[b];
-var tw=0.1+0.9*Math.pow(0.5+0.5*Math.sin(t*bd.speed+bd.phase),2.0);
-ctx.beginPath();
-ctx.arc(bd.x,bd.y,bd.r,0,Math.PI*2);
-ctx.fillStyle=‘rgba(60,120,255,’+(tw*0.55).toFixed(3)+’)’;
-ctx.fill();
-}
-// White stars
-for (var s=0; s<stars.length; s++) {
-var st=stars[s];
-var tw=0.15+0.85*Math.pow(0.5+0.5*Math.sin(t*st.speed+st.phase),2.5);
-ctx.beginPath();
-ctx.arc(st.x,st.y,st.r,0,Math.PI*2);
-ctx.fillStyle=‘rgba(255,255,255,’+(tw*0.8).toFixed(3)+’)’;
-ctx.fill();
-}
+  // Blue dots — drawn first (behind everything)
+  for (var b=0; b<blueDots.length; b++) {
+    var bd=blueDots[b];
+    var tw=0.1+0.9*Math.pow(0.5+0.5*Math.sin(t*bd.speed+bd.phase),2.0);
+    ctx.beginPath();
+    ctx.arc(bd.x,bd.y,bd.r,0,Math.PI*2);
+    ctx.fillStyle='rgba(60,120,255,'+(tw*0.55).toFixed(3)+')';
+    ctx.fill();
+  }
+  // White stars
+  for (var s=0; s<stars.length; s++) {
+    var st=stars[s];
+    var tw=0.15+0.85*Math.pow(0.5+0.5*Math.sin(t*st.speed+st.phase),2.5);
+    ctx.beginPath();
+    ctx.arc(st.x,st.y,st.r,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,'+(tw*0.8).toFixed(3)+')';
+    ctx.fill();
+  }
 }
 
 function drawGreenFront() {
-// Green pixels drawn in front of red lines
-for (var g=0; g<greenPixels.length; g++) {
-var gp=greenPixels[g];
-var raw=0.5+0.5*Math.sin(t*gp.speed+gp.phase);
-var tw2=Math.pow(raw, 4.0);
-if (tw2<0.05) continue;
-ctx.beginPath();
-ctx.arc(gp.x, gp.y, gp.size, 0, Math.PI*2);
-ctx.fillStyle=‘rgba(0,255,60,’+tw2.toFixed(3)+’)’;
-ctx.fill();
-}
+  // Green pixels drawn in front of red lines
+  for (var g=0; g<greenPixels.length; g++) {
+    var gp=greenPixels[g];
+    var raw=0.5+0.5*Math.sin(t*gp.speed+gp.phase);
+    var tw2=Math.pow(raw, 4.0);
+    if (tw2<0.05) continue;
+    ctx.beginPath();
+    ctx.arc(gp.x, gp.y, gp.size, 0, Math.PI*2);
+    ctx.fillStyle='rgba(0,255,60,'+tw2.toFixed(3)+')';
+    ctx.fill();
+  }
 }
 
 // ── resize ────────────────────────────────────
 function resize() {
-DPR=window.devicePixelRatio||1;
-W=window.innerWidth; H=window.innerHeight; CX=W/2; CY=H/2;
-canvas.width=Math.floor(W*DPR); canvas.height=Math.floor(H*DPR);
-canvas.style.width=W+‘px’; canvas.style.height=H+‘px’;
-initStars();
-initVortex();
+  DPR=window.devicePixelRatio||1;
+  W=window.innerWidth; H=window.innerHeight; CX=W/2; CY=H/2;
+  canvas.width=Math.floor(W*DPR); canvas.height=Math.floor(H*DPR);
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  initStars();
+  initVortex();
 }
 
 // ── 3d ────────────────────────────────────────
@@ -158,89 +157,89 @@ function project(v){var sc=FOV/(FOV+v[2]+200);return[v[0]*sc,v[1]*sc];}
 // ── easing ────────────────────────────────────
 // Very bouncy elastic — lots of oscillation
 function easeOutElasticBig(x) {
-if(x<=0) return 0; if(x>=1) return 1;
-var c = (2*Math.PI)/2.5; // tighter period = more bounces
-return Math.pow(2,-8*x)*Math.sin((x*12-0.75)*c)+1;
+  if(x<=0) return 0; if(x>=1) return 1;
+  var c = (2*Math.PI)/2.5; // tighter period = more bounces
+  return Math.pow(2,-8*x)*Math.sin((x*12-0.75)*c)+1;
 }
 function easeOutCubic(x) { return 1-Math.pow(1-x,3); }
 
 // ── anchor helpers ────────────────────────────
 function pickAnchor(sp, i) {
-// Wild spread: full random angle, large distances
-var ang  = Math.random()*Math.PI*2;
-var dist = (0.32+Math.random()*0.42)*Math.min(W,H); // 32–74% of viewport
-sp.ax = Math.cos(ang)*dist;
-sp.ay = Math.sin(ang)*dist;
-sp.anchorT = 2.5 + Math.random()*3.5;
+  // Wild spread: full random angle, large distances
+  var ang  = Math.random()*Math.PI*2;
+  var dist = (0.32+Math.random()*0.42)*Math.min(W,H); // 32–74% of viewport
+  sp.ax = Math.cos(ang)*dist;
+  sp.ay = Math.sin(ang)*dist;
+  sp.anchorT = 2.5 + Math.random()*3.5;
 }
 
 // ── interaction ───────────────────────────────
 function onInteract() {
-if (mode === ‘idle’) {
-// First click: scatter
-mode = ‘scattered’;
-for (var i=0; i<NUM; i++) {
-var sp=spheres[i];
-sp.dir *= -1;
-sp.seed = Math.random()*500+t*13;
-// Wild initial burst — full random direction, bigger push
-var ang = Math.random()*Math.PI*2;
-var spd = (0.18+Math.random()*0.28)*Math.min(W,H);
-sp.vx = Math.cos(ang)*spd;
-sp.vy = Math.sin(ang)*spd;
-sp.px = 0; sp.py = 0;
-// Spin rates tied to burst speed — faster burst = faster spin
-var spdFrac = spd / (Math.min(W,H)*0.46);
-var baseRate = 0.015 + spdFrac*0.18;
-sp.spinY = baseRate*(Math.random()<0.5?1:-1)*(0.6+Math.random()*0.8);
-sp.spinX = baseRate*(Math.random()<0.5?1:-1)*(0.4+Math.random()*1.0);
-sp.spinZ = baseRate*(Math.random()<0.5?1:-1)*(0.2+Math.random()*0.6);
-pickAnchor(sp, i);
-// Mirror burst for blue set
-var spB=spheresB[i];
-spB.seed = Math.random()*500+t*7;
-var angB = Math.random()*Math.PI*2;
-var spdB = (0.18+Math.random()*0.28)*Math.min(W,H);
-spB.vx = Math.cos(angB)*spdB;
-spB.vy = Math.sin(angB)*spdB;
-spB.px = 0; spB.py = 0;
-var spdFracB = spdB / (Math.min(W,H)*0.46);
-var baseRateB = 0.015 + spdFracB*0.18;
-spB.spinY = baseRateB*(Math.random()<0.5?1:-1)*(0.6+Math.random()*0.8);
-spB.spinX = baseRateB*(Math.random()<0.5?1:-1)*(0.4+Math.random()*1.0);
-spB.spinZ = baseRateB*(Math.random()<0.5?1:-1)*(0.2+Math.random()*0.6);
-pickAnchor(spB, i);
-}
-} else if (mode === ‘scattered’) {
-// Second click: return
-mode = ‘returning’;
-returnT = 0;
-for (var i=0; i<NUM; i++) {
-spheres[i].dir *= -1;
-spheresB[i].dir *= -1;
-}
-} else if (mode === ‘returning’) {
-// Third click during return: restart scatter
-mode = ‘scattered’;
-for (var i=0; i<NUM; i++) {
-var sp=spheres[i];
-sp.seed=Math.random()*500+t*13;
-pickAnchor(sp, i);
-}
-}
+  if (mode === 'idle') {
+    // First click: scatter
+    mode = 'scattered';
+    for (var i=0; i<NUM; i++) {
+      var sp=spheres[i];
+      sp.dir *= -1;
+      sp.seed = Math.random()*500+t*13;
+        // Wild initial burst — full random direction, bigger push
+      var ang = Math.random()*Math.PI*2;
+      var spd = (0.18+Math.random()*0.28)*Math.min(W,H);
+      sp.vx = Math.cos(ang)*spd;
+      sp.vy = Math.sin(ang)*spd;
+      sp.px = 0; sp.py = 0;
+      // Spin rates tied to burst speed — faster burst = faster spin
+      var spdFrac = spd / (Math.min(W,H)*0.46);
+      var baseRate = 0.015 + spdFrac*0.18;
+      sp.spinY = baseRate*(Math.random()<0.5?1:-1)*(0.6+Math.random()*0.8);
+      sp.spinX = baseRate*(Math.random()<0.5?1:-1)*(0.4+Math.random()*1.0);
+      sp.spinZ = baseRate*(Math.random()<0.5?1:-1)*(0.2+Math.random()*0.6);
+      pickAnchor(sp, i);
+      // Mirror burst for blue set
+      var spB=spheresB[i];
+      spB.seed = Math.random()*500+t*7;
+      var angB = Math.random()*Math.PI*2;
+      var spdB = (0.18+Math.random()*0.28)*Math.min(W,H);
+      spB.vx = Math.cos(angB)*spdB;
+      spB.vy = Math.sin(angB)*spdB;
+      spB.px = 0; spB.py = 0;
+      var spdFracB = spdB / (Math.min(W,H)*0.46);
+      var baseRateB = 0.015 + spdFracB*0.18;
+      spB.spinY = baseRateB*(Math.random()<0.5?1:-1)*(0.6+Math.random()*0.8);
+      spB.spinX = baseRateB*(Math.random()<0.5?1:-1)*(0.4+Math.random()*1.0);
+      spB.spinZ = baseRateB*(Math.random()<0.5?1:-1)*(0.2+Math.random()*0.6);
+      pickAnchor(spB, i);
+    }
+  } else if (mode === 'scattered') {
+    // Second click: return
+    mode = 'returning';
+    returnT = 0;
+    for (var i=0; i<NUM; i++) {
+      spheres[i].dir *= -1;
+      spheresB[i].dir *= -1;
+    }
+  } else if (mode === 'returning') {
+    // Third click during return: restart scatter
+    mode = 'scattered';
+    for (var i=0; i<NUM; i++) {
+      var sp=spheres[i];
+      sp.seed=Math.random()*500+t*13;
+      pickAnchor(sp, i);
+    }
+  }
 }
 
 // ── sphere color: solid #F72119 ──
 function fireColor(frac, time, idx) {
-return [247, 33, 25];
+  return [247, 33, 25];
 }
 
 var bgPulse = 0;
 // ── background: pure black ──
 function drawBackground(pulse) {
-bgPulse = pulse;
-ctx.fillStyle = ‘#000’;
-ctx.fillRect(0, 0, W, H);
+  bgPulse = pulse;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
 }
 
 // ── vortex tunnels ────────────────────────────
@@ -251,7 +250,7 @@ var vortexMaxHalf         = 1;
 // fBm noise reused from sphere system (hash/noise1/fbm already defined above)
 // Each tunnel has its own noise seed for independent fractal variation
 var tunnelA = { squares: [], baseAngle: 0, counter: 0, spawnTimer: 0, dir: 1,
-speed: VORTEX_SPEED,          rotSpeed: 0.10, seed: 1.7,   spawnSeed: 5.3  };
+                speed: VORTEX_SPEED,          rotSpeed: 0.10, seed: 1.7,   spawnSeed: 5.3  };
 // Polygon sequence for tunnelB: 3→4→5→6→7→8→7→6→5→4→3→ (bounce)
 var POLY_SIDES_SEQ = [3, 4, 5, 6, 7, 8]; // up-sequence; reverses at each end
 var tunnelBPolyIdx  = 0;    // current position in up-sequence (0=tri, 5=oct)
@@ -260,170 +259,170 @@ var tunnelBShapeCount = 0;  // how many shapes spawned at current sides level
 var POLY_COUNT_PER = 100;   // shapes per level before advancing
 
 var tunnelB = { squares: [], baseAngle: 0, counter: 0, spawnTimer: 0, dir: 1,
-speed: VORTEX_SPEED * 0.9025, rotSpeed: 0.14, seed: 3.1,   spawnSeed: 11.7 };
+                speed: VORTEX_SPEED * 0.9025, rotSpeed: 0.14, seed: 3.1,   spawnSeed: 11.7 };
 var tunnelC = { squares: [], baseAngle: 0, counter: 0, spawnTimer: 0, dir: 1,
-speed: VORTEX_SPEED * 0.9,   rotSpeed: 0.08, seed: 7.9,   spawnSeed: 23.1 };
+                speed: VORTEX_SPEED * 0.9,   rotSpeed: 0.08, seed: 7.9,   spawnSeed: 23.1 };
 
 function seedTunnel(tun) {
-tun.squares = [];
-tun.counter = 0;
-tun.spawnTimer = 0;
-var maxH = Math.sqrt(window.innerWidth*window.innerWidth + window.innerHeight*window.innerHeight)*0.5 + 60;
-var numToSeed = Math.ceil(maxH / (tun.speed * VORTEX_BASE_INTERVAL));
-for (var n=0; n<numToSeed; n++) {
-var age = n * VORTEX_BASE_INTERVAL;
-var ba = tun.dir * (-tun.counter * (Math.PI / 180));
-tun.squares.push({ half: age * tun.speed, idx: tun.counter, birthAngle: ba });
-tun.counter++;
-}
+  tun.squares = [];
+  tun.counter = 0;
+  tun.spawnTimer = 0;
+  var maxH = Math.sqrt(window.innerWidth*window.innerWidth + window.innerHeight*window.innerHeight)*0.5 + 60;
+  var numToSeed = Math.ceil(maxH / (tun.speed * VORTEX_BASE_INTERVAL));
+  for (var n=0; n<numToSeed; n++) {
+    var age = n * VORTEX_BASE_INTERVAL;
+    var ba = tun.dir * (-tun.counter * (Math.PI / 180));
+    tun.squares.push({ half: age * tun.speed, idx: tun.counter, birthAngle: ba });
+    tun.counter++;
+  }
 }
 
 function initVortex() {
-vortexMaxHalf = Math.sqrt(window.innerWidth*window.innerWidth + window.innerHeight*window.innerHeight)*0.5 + 60;
-seedTunnel(tunnelA);
-seedTunnel(tunnelB);
-seedTunnel(tunnelC);
+  vortexMaxHalf = Math.sqrt(window.innerWidth*window.innerWidth + window.innerHeight*window.innerHeight)*0.5 + 60;
+  seedTunnel(tunnelA);
+  seedTunnel(tunnelB);
+  seedTunnel(tunnelC);
 }
 
 function updateTunnel(tun, dt2) {
-// Rotation speed: modulated by fBm — drifts organically over time
-// Range: rotSpeed * 0.4 to rotSpeed * 1.8
-var rotNoise = 0.4 + 1.4 * fbm(tun.seed + t * 0.11);
-tun.baseAngle += tun.rotSpeed * rotNoise * tun.dir * dt2;
+  // Rotation speed: modulated by fBm — drifts organically over time
+  // Range: rotSpeed * 0.4 to rotSpeed * 1.8
+  var rotNoise = 0.4 + 1.4 * fbm(tun.seed + t * 0.11);
+  tun.baseAngle += tun.rotSpeed * rotNoise * tun.dir * dt2;
 
-// Expansion speed: also fBm-modulated per tunnel
-// Range: speed * 0.55 to speed * 1.5
-var expNoise = 0.55 + 0.95 * fbm(tun.seed * 2.3 + t * 0.07);
-var currentSpeed = tun.speed * expNoise;
+  // Expansion speed: also fBm-modulated per tunnel
+  // Range: speed * 0.55 to speed * 1.5
+  var expNoise = 0.55 + 0.95 * fbm(tun.seed * 2.3 + t * 0.07);
+  var currentSpeed = tun.speed * expNoise;
 
-for (var v=0; v<tun.squares.length; v++) {
-tun.squares[v].half += currentSpeed * dt2;
-}
+  for (var v=0; v<tun.squares.length; v++) {
+    tun.squares[v].half += currentSpeed * dt2;
+  }
 
-// Spawn interval: varies with its own fractal seed — denser/sparser bursts
-// Range: interval * 0.5 to interval * 2.0
-var spawnNoise = 0.5 + 1.5 * fbm(tun.spawnSeed + t * 0.09);
-var currentInterval = VORTEX_BASE_INTERVAL * spawnNoise;
+  // Spawn interval: varies with its own fractal seed — denser/sparser bursts
+  // Range: interval * 0.5 to interval * 2.0
+  var spawnNoise = 0.5 + 1.5 * fbm(tun.spawnSeed + t * 0.09);
+  var currentInterval = VORTEX_BASE_INTERVAL * spawnNoise;
 
-tun.spawnTimer += dt2;
-while (tun.spawnTimer >= currentInterval) {
-tun.spawnTimer -= currentInterval;
-var ba = tun.dir * (-tun.counter * (Math.PI / 180));
-// For tunnelB, track which polygon sides to use and advance sequence
-var sides = 4; // default square for A and C
-if (tun === tunnelB) {
-sides = POLY_SIDES_SEQ[tunnelBPolyIdx];
-tunnelBShapeCount++;
-if (tunnelBShapeCount >= POLY_COUNT_PER) {
-tunnelBShapeCount = 0;
-tunnelBPolyIdx += tunnelBPolyDir;
-if (tunnelBPolyIdx >= POLY_SIDES_SEQ.length) {
-tunnelBPolyIdx = POLY_SIDES_SEQ.length - 2; // bounce back
-tunnelBPolyDir = -1;
-} else if (tunnelBPolyIdx < 0) {
-tunnelBPolyIdx = 1; // bounce forward
-tunnelBPolyDir = 1;
-}
-}
-}
-tun.squares.unshift({ half: 0, idx: tun.counter, birthAngle: ba, sides: sides });
-tun.counter++;
-}
+  tun.spawnTimer += dt2;
+  while (tun.spawnTimer >= currentInterval) {
+    tun.spawnTimer -= currentInterval;
+    var ba = tun.dir * (-tun.counter * (Math.PI / 180));
+    // For tunnelB, track which polygon sides to use and advance sequence
+    var sides = 4; // default square for A and C
+    if (tun === tunnelB) {
+      sides = POLY_SIDES_SEQ[tunnelBPolyIdx];
+      tunnelBShapeCount++;
+      if (tunnelBShapeCount >= POLY_COUNT_PER) {
+        tunnelBShapeCount = 0;
+        tunnelBPolyIdx += tunnelBPolyDir;
+        if (tunnelBPolyIdx >= POLY_SIDES_SEQ.length) {
+          tunnelBPolyIdx = POLY_SIDES_SEQ.length - 2; // bounce back
+          tunnelBPolyDir = -1;
+        } else if (tunnelBPolyIdx < 0) {
+          tunnelBPolyIdx = 1; // bounce forward
+          tunnelBPolyDir = 1;
+        }
+      }
+    }
+    tun.squares.unshift({ half: 0, idx: tun.counter, birthAngle: ba, sides: sides });
+    tun.counter++;
+  }
 
-while (tun.squares.length > 0 && tun.squares[tun.squares.length-1].half > vortexMaxHalf) {
-tun.squares.pop();
-}
+  while (tun.squares.length > 0 && tun.squares[tun.squares.length-1].half > vortexMaxHalf) {
+    tun.squares.pop();
+  }
 }
 
 // Draw a square with animated red→blue gradient stroke along its perimeter
-// Uses canvas linear gradient mapped to the square’s rotated bounding box
+// Uses canvas linear gradient mapped to the square's rotated bounding box
 function drawGradientSquare(half, alpha, rotation) {
-// Gradient phase: slow wave makes colors animate along the stroke
-var phase = t * 0.7;  // speed of color travel along stroke
-// Lerp between red and blue based on animated phase per-square
-// Use two passes with a linear gradient oriented diagonally for travel effect
-var cos = Math.cos(rotation), sin = Math.sin(rotation);
-// Four corners in screen space (already translated to CX,CY)
-// Gradient runs along the diagonal of the square
-var gx1 = -half*cos - (-half)*sin, gy1 = -half*sin + (-half)*cos;
-var gx2 =  half*cos - half*sin,    gy2 =  half*sin + half*cos;
-var grad = ctx.createLinearGradient(gx1, gy1, gx2, gy2);
-// Animate offset so colors appear to flow around the square
-var offset = (phase * 0.15) % 1.0;
-var o1 = offset, o2 = (offset + 0.5) % 1.0;
-// Add stops ensuring full 0..1 coverage with wrapping feel
-if (o1 < o2) {
-grad.addColorStop(0,    ‘rgba(255,0,0,’+alpha+’)’);
-grad.addColorStop(o1,   ‘rgba(0,0,255,’+alpha+’)’);
-grad.addColorStop(o2,   ‘rgba(255,0,0,’+alpha+’)’);
-grad.addColorStop(1.0,  ‘rgba(0,0,255,’+alpha+’)’);
-} else {
-grad.addColorStop(0,    ‘rgba(0,0,255,’+alpha+’)’);
-grad.addColorStop(o2,   ‘rgba(255,0,0,’+alpha+’)’);
-grad.addColorStop(o1,   ‘rgba(0,0,255,’+alpha+’)’);
-grad.addColorStop(1.0,  ‘rgba(255,0,0,’+alpha+’)’);
-}
-ctx.strokeStyle = grad;
-ctx.strokeRect(-half, -half, half*2, half*2);
+  // Gradient phase: slow wave makes colors animate along the stroke
+  var phase = t * 0.7;  // speed of color travel along stroke
+  // Lerp between red and blue based on animated phase per-square
+  // Use two passes with a linear gradient oriented diagonally for travel effect
+  var cos = Math.cos(rotation), sin = Math.sin(rotation);
+  // Four corners in screen space (already translated to CX,CY)
+  // Gradient runs along the diagonal of the square
+  var gx1 = -half*cos - (-half)*sin, gy1 = -half*sin + (-half)*cos;
+  var gx2 =  half*cos - half*sin,    gy2 =  half*sin + half*cos;
+  var grad = ctx.createLinearGradient(gx1, gy1, gx2, gy2);
+  // Animate offset so colors appear to flow around the square
+  var offset = (phase * 0.15) % 1.0;
+  var o1 = offset, o2 = (offset + 0.5) % 1.0;
+  // Add stops ensuring full 0..1 coverage with wrapping feel
+  if (o1 < o2) {
+    grad.addColorStop(0,    'rgba(255,0,0,'+alpha+')');
+    grad.addColorStop(o1,   'rgba(0,0,255,'+alpha+')');
+    grad.addColorStop(o2,   'rgba(255,0,0,'+alpha+')');
+    grad.addColorStop(1.0,  'rgba(0,0,255,'+alpha+')');
+  } else {
+    grad.addColorStop(0,    'rgba(0,0,255,'+alpha+')');
+    grad.addColorStop(o2,   'rgba(255,0,0,'+alpha+')');
+    grad.addColorStop(o1,   'rgba(0,0,255,'+alpha+')');
+    grad.addColorStop(1.0,  'rgba(255,0,0,'+alpha+')');
+  }
+  ctx.strokeStyle = grad;
+  ctx.strokeRect(-half, -half, half*2, half*2);
 }
 
 // Draw a regular polygon with n sides inscribed in circle of radius r
 function drawPolygon(n, r) {
-var angleStep = (Math.PI * 2) / n;
-var startAngle = -Math.PI / 2; // point upward
-ctx.beginPath();
-for (var p = 0; p <= n; p++) {
-var px = Math.cos(startAngle + p * angleStep) * r;
-var py = Math.sin(startAngle + p * angleStep) * r;
-if (p === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-}
-ctx.closePath();
-ctx.stroke();
+  var angleStep = (Math.PI * 2) / n;
+  var startAngle = -Math.PI / 2; // point upward
+  ctx.beginPath();
+  for (var p = 0; p <= n; p++) {
+    var px = Math.cos(startAngle + p * angleStep) * r;
+    var py = Math.sin(startAngle + p * angleStep) * r;
+    if (p === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.stroke();
 }
 
 function drawTunnel(tun, alphaScale, useGradient) {
-var pulse = 0.5 + 0.5*Math.sin(t*1.4);
-var globalAlpha = (0.55 + 0.40*pulse) * alphaScale;
-for (var v=0; v<tun.squares.length; v++) {
-var sq = tun.squares[v];
-var frac = sq.half / vortexMaxHalf;
-var fade = Math.max(0, 1.0 - Math.pow(frac, 1.8));
-var alpha = globalAlpha * fade;
-if (alpha < 0.01) continue;
-var rot = tun.baseAngle + sq.birthAngle;
-var sides = sq.sides || 4;
-ctx.save();
-ctx.translate(CX, CY);
-ctx.rotate(rot);
-ctx.lineWidth = 1.2;
-ctx.shadowBlur = 0;
-if (useGradient) {
-drawGradientSquare(sq.half, alpha.toFixed(3), rot);
-} else {
-var col = (sq.idx % 2 === 0) ? ‘0,0,255’ : ‘255,0,0’;
-ctx.strokeStyle = ‘rgba(’+col+’,’+alpha.toFixed(3)+’)’;
-// Draw polygon by sides; square uses fast strokeRect, rest use drawPolygon
-if (sides === 4) {
-ctx.strokeRect(-sq.half, -sq.half, sq.half*2, sq.half*2);
-} else {
-drawPolygon(sides, sq.half);
-}
-}
-ctx.restore();
-}
+  var pulse = 0.5 + 0.5*Math.sin(t*1.4);
+  var globalAlpha = (0.55 + 0.40*pulse) * alphaScale;
+  for (var v=0; v<tun.squares.length; v++) {
+    var sq = tun.squares[v];
+    var frac = sq.half / vortexMaxHalf;
+    var fade = Math.max(0, 1.0 - Math.pow(frac, 1.8));
+    var alpha = globalAlpha * fade;
+    if (alpha < 0.01) continue;
+    var rot = tun.baseAngle + sq.birthAngle;
+    var sides = sq.sides || 4;
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.rotate(rot);
+    ctx.lineWidth = 1.2;
+    ctx.shadowBlur = 0;
+    if (useGradient) {
+      drawGradientSquare(sq.half, alpha.toFixed(3), rot);
+    } else {
+      var col = (sq.idx % 2 === 0) ? '0,0,255' : '255,0,0';
+      ctx.strokeStyle = 'rgba('+col+','+alpha.toFixed(3)+')';
+      // Draw polygon by sides; square uses fast strokeRect, rest use drawPolygon
+      if (sides === 4) {
+        ctx.strokeRect(-sq.half, -sq.half, sq.half*2, sq.half*2);
+      } else {
+        drawPolygon(sides, sq.half);
+      }
+    }
+    ctx.restore();
+  }
 }
 
 function updateVortex(dt2) {
-vortexMaxHalf = Math.sqrt(W*W+H*H)*0.5 + 60;
-updateTunnel(tunnelA, dt2);
-updateTunnel(tunnelB, dt2);
-updateTunnel(tunnelC, dt2);
+  vortexMaxHalf = Math.sqrt(W*W+H*H)*0.5 + 60;
+  updateTunnel(tunnelA, dt2);
+  updateTunnel(tunnelB, dt2);
+  updateTunnel(tunnelC, dt2);
 }
 
 function drawVortex() {
-drawTunnel(tunnelC, 0.5,  true);   // deepest — gradient, dimmer
-drawTunnel(tunnelA, 0.65, false);  // middle
-drawTunnel(tunnelB, 1.0,  false);  // front
+  drawTunnel(tunnelC, 0.5,  true);   // deepest — gradient, dimmer
+  drawTunnel(tunnelA, 0.65, false);  // middle
+  drawTunnel(tunnelB, 1.0,  false);  // front
 }
 
 // Dramatic non-uniform sphere sizes: outer large, drops steeply, inner tiny
@@ -434,300 +433,296 @@ function rotZ(v,a){var x=v[0],y=v[1],z=v[2],c=Math.cos(a),s=Math.sin(a);return[c
 
 // ── path building ─────────────────────────────
 function buildPaths(sp, radius) {
-var paths=[], i,j,v,p,pts;
-for(i=1;i<=LATITUDES;i++){
-var phi=(i/(LATITUDES+1))*Math.PI,rR=radius*Math.sin(phi),rYv=radius*Math.cos(phi);
-pts=[];
-for(j=0;j<=SEGMENTS;j++){
-var theta=(j/SEGMENTS)*Math.PI*2;
-v=[rR*Math.cos(theta),rYv,rR*Math.sin(theta)];
-v=rotY(v,sp.aY); v=rotX(v,sp.aX); v=rotZ(v,sp.aZ);
-p=project(v); pts.push([p[0],p[1]]);
-}
-paths.push(pts);
-}
-for(i=0;i<LONGITUDES;i++){
-var t0=(i/LONGITUDES)*Math.PI*2; pts=[];
-for(j=0;j<=SEGMENTS;j++){
-var ph2=(j/SEGMENTS)*Math.PI;
-v=[radius*Math.sin(ph2)*Math.cos(t0),radius*Math.cos(ph2),radius*Math.sin(ph2)*Math.sin(t0)];
-v=rotY(v,sp.aY); v=rotX(v,sp.aX); v=rotZ(v,sp.aZ);
-p=project(v); pts.push([p[0],p[1]]);
-}
-paths.push(pts);
-}
-return paths;
+  var paths=[], i,j,v,p,pts;
+  for(i=1;i<=LATITUDES;i++){
+    var phi=(i/(LATITUDES+1))*Math.PI,rR=radius*Math.sin(phi),rYv=radius*Math.cos(phi);
+    pts=[];
+    for(j=0;j<=SEGMENTS;j++){
+      var theta=(j/SEGMENTS)*Math.PI*2;
+      v=[rR*Math.cos(theta),rYv,rR*Math.sin(theta)];
+      v=rotY(v,sp.aY); v=rotX(v,sp.aX); v=rotZ(v,sp.aZ);
+      p=project(v); pts.push([p[0],p[1]]);
+    }
+    paths.push(pts);
+  }
+  for(i=0;i<LONGITUDES;i++){
+    var t0=(i/LONGITUDES)*Math.PI*2; pts=[];
+    for(j=0;j<=SEGMENTS;j++){
+      var ph2=(j/SEGMENTS)*Math.PI;
+      v=[radius*Math.sin(ph2)*Math.cos(t0),radius*Math.cos(ph2),radius*Math.sin(ph2)*Math.sin(t0)];
+      v=rotY(v,sp.aY); v=rotX(v,sp.aX); v=rotZ(v,sp.aZ);
+      p=project(v); pts.push([p[0],p[1]]);
+    }
+    paths.push(pts);
+  }
+  return paths;
 }
 
 function strokePaths(paths, drawX, drawY, sc, col, lw, alpha) {
-ctx.save();
-ctx.translate(drawX, drawY);
-ctx.scale(sc, sc);
-ctx.strokeStyle=‘rgba(’+col[0]+’,’+col[1]+’,’+col[2]+’,’+alpha+’)’;
-ctx.lineWidth=lw; ctx.shadowBlur=0;
-ctx.beginPath();
-for(var pi=0;pi<paths.length;pi++){
-var pts=paths[pi];
-ctx.moveTo(pts[0][0],pts[0][1]);
-for(var qi=1;qi<pts.length;qi++) ctx.lineTo(pts[qi][0],pts[qi][1]);
-}
-ctx.stroke();
-ctx.restore();
+  ctx.save();
+  ctx.translate(drawX, drawY);
+  ctx.scale(sc, sc);
+  ctx.strokeStyle='rgba('+col[0]+','+col[1]+','+col[2]+','+alpha+')';
+  ctx.lineWidth=lw; ctx.shadowBlur=0;
+  ctx.beginPath();
+  for(var pi=0;pi<paths.length;pi++){
+    var pts=paths[pi];
+    ctx.moveTo(pts[0][0],pts[0][1]);
+    for(var qi=1;qi<pts.length;qi++) ctx.lineTo(pts[qi][0],pts[qi][1]);
+  }
+  ctx.stroke();
+  ctx.restore();
 }
 
 // ── animate ───────────────────────────────────
 function animate(ts) {
-requestAnimationFrame(animate);
-var dt=Math.min((ts-prevT)*0.001,0.05); prevT=ts; t+=dt;
+  requestAnimationFrame(animate);
+  var dt=Math.min((ts-prevT)*0.001,0.05); prevT=ts; t+=dt;
 
-var pulse=0.5+0.5*Math.sin(t*1.6);
-ctx.setTransform(DPR,0,0,DPR,0,0);
-drawBackground(pulse);
-drawStarsBack();    // blue + white dots behind everything
-updateVortex(dt);
-drawVortex();
+  var pulse=0.5+0.5*Math.sin(t*1.6);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  drawBackground(pulse);
+  drawStarsBack();    // blue + white dots behind everything
+  updateVortex(dt);
+  drawVortex();
 
-var baseRadius=Math.min(W,H)*0.15;
+  var baseRadius=Math.min(W,H)*0.15;
 
-// ── Blue sphere set physics + draw (behind red) ──
-var bDrawX=[], bDrawY=[], bSc=[], bAlp=[];
-for(var i=0;i<NUM;i++){
-var spb=spheresB[i];
-spb.aY += spb.spinY*(dt/0.016);
-spb.aX += spb.spinX*(dt/0.016);
-spb.aZ += spb.spinZ*(dt/0.016);
-var bdX=CX, bdY=CY, bsc=1, balp=1;
-if(mode===‘scattered’){
-spb.anchorT-=dt;
-if(spb.anchorT<=0) pickAnchor(spb,i);
-var stiffB=1.1+i*0.07, dampB=0.55+i*0.03;
-spb.vx+=(spb.ax-spb.px)*stiffB*dt-spb.vx*dampB*dt;
-spb.vy+=(spb.ay-spb.py)*stiffB*dt-spb.vy*dampB*dt;
-spb.px+=spb.vx*dt; spb.py+=spb.vy*dt;
-var dB=Math.sqrt(spb.px*spb.px+spb.py*spb.py);
-var limB=Math.min(W,H)*0.76;
-if(dB>limB){ var ovB=(dB-limB)/limB; spb.vx-=(spb.px/dB)*ovB*stiffB*3*dt; spb.vy-=(spb.py/dB)*ovB*stiffB*3*dt; }
-bdX=CX+spb.px; bdY=CY+spb.py;
-var spdB2=Math.sqrt(spb.vx*spb.vx+spb.vy*spb.vy);
-bsc=0.85+0.4*(spdB2/(Math.min(W,H)*0.5));
-balp=0.8+0.2*Math.sin(t*1.3+i*0.9);
-} else if(mode===‘returning’){
-var stRB=12+i*1.0, daRB=2.2;
-spb.vx+=(0-spb.px)*stRB*dt-spb.vx*daRB*dt;
-spb.vy+=(0-spb.py)*stRB*dt-spb.vy*daRB*dt;
-spb.px+=spb.vx*dt; spb.py+=spb.vy*dt;
-bdX=CX+spb.px; bdY=CY+spb.py;
-var spdB3=Math.sqrt(spb.vx*spb.vx+spb.vy*spb.vy);
-bsc=0.85+0.35*(spdB3/(Math.min(W,H)*0.5));
-balp=0.6+0.4*easeOutCubic(Math.min(1,returnT/RETURN_DUR));
-} else {
-spb.vx*=0.88; spb.vy*=0.88; spb.px+=spb.vx*dt; spb.py+=spb.vy*dt;
-bdX=CX+spb.px; bdY=CY+spb.py; bsc=1; balp=1;
-}
-bDrawX.push(bdX); bDrawY.push(bdY); bSc.push(bsc); bAlp.push(balp);
-}
-// Draw blue strings
-var showStringsB=(mode===‘scattered’||mode===‘returning’);
-var perspScaleB=FOV/(FOV+200);
-if(showStringsB){
-for(var i=0;i<NUM;i++){
-var bdx=bDrawX[i]-CX, bdy=bDrawY[i]-CY;
-var bd=Math.sqrt(bdx*bdx+bdy*bdy);
-var bsa=Math.min(1,bd/(Math.min(W,H)*0.04))*bAlp[i];
-if(bsa<0.01) continue;
-var bvisR=perspScaleB*baseRadius*sphereScale(i)*bSc[i];
-var bnx=bd>0?bdx/bd:0, bny=bd>0?bdy/bd:0;
-ctx.save();
-ctx.strokeStyle=‘rgba(30,100,255,’+bsa+’)’;
-ctx.lineWidth=0.75; ctx.shadowBlur=0;
-ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(bDrawX[i]-bnx*bvisR, bDrawY[i]-bny*bvisR); ctx.stroke();
-ctx.restore();
-}
-}
-// Draw blue spheres
-for(var i=0;i<NUM;i++){
-var spb2=spheresB[i];
-var rblu=baseRadius*sphereScale(i);
-var pblu=buildPaths(spb2,rblu);
-var bablu=bAlp[i]*(0.85+0.15*pulse);
-strokePaths(pblu,bDrawX[i],bDrawY[i],bSc[i],[30,100,255],1.0-i*0.05,bablu);
-}
-
-var spDrawX=[], spDrawY=[], spSc=[], spAlp=[], spCol=[];
-var showStrings = (mode===‘scattered’||mode===‘returning’);
-
-// Advance return timer
-if(mode===‘returning’){
-returnT+=dt;
-if(returnT>=RETURN_DUR){ mode=‘idle’; returnT=0; }
-}
-
-for(var i=0;i<NUM;i++){
-var sp=spheres[i];
-var frac=i/(NUM-1);
-// 3-axis rotation — rates set at burst time
-sp.aY += sp.spinY*(dt/0.016);
-sp.aX += sp.spinX*(dt/0.016);
-sp.aZ += sp.spinZ*(dt/0.016);
-
-```
-var drawX=CX, drawY=CY, sc=1, alp=1;
-
-if(mode==='scattered'){
-  // Re-pick anchor periodically
-  sp.anchorT-=dt;
-  if(sp.anchorT<=0) pickAnchor(sp,i);
-
-  // Underdamped spring: low stiffness + low damping = slow, elastic, bouncy
-  // stiffness ~1.1–1.8 gives long lazy oscillations (~4–6s period)
-  var stiff = 1.1 + i*0.07;
-  var damp  = 0.55 + i*0.03; // well underdamped: rings many times
-
-  sp.vx += (sp.ax - sp.px)*stiff*dt - sp.vx*damp*dt;
-  sp.vy += (sp.ay - sp.py)*stiff*dt - sp.vy*damp*dt;
-  sp.px += sp.vx*dt;
-  sp.py += sp.vy*dt;
-
-  // Soft boundary: gentle nudge back if too far
-  var d=Math.sqrt(sp.px*sp.px+sp.py*sp.py);
-  var limit=Math.min(W,H)*0.76;
-  if(d>limit){
-    var over=(d-limit)/limit;
-    sp.vx-=(sp.px/d)*over*stiff*3*dt;
-    sp.vy-=(sp.py/d)*over*stiff*3*dt;
+  // ── Blue sphere set physics + draw (behind red) ──
+  var bDrawX=[], bDrawY=[], bSc=[], bAlp=[];
+  for(var i=0;i<NUM;i++){
+    var spb=spheresB[i];
+    spb.aY += spb.spinY*(dt/0.016);
+    spb.aX += spb.spinX*(dt/0.016);
+    spb.aZ += spb.spinZ*(dt/0.016);
+    var bdX=CX, bdY=CY, bsc=1, balp=1;
+    if(mode==='scattered'){
+      spb.anchorT-=dt;
+      if(spb.anchorT<=0) pickAnchor(spb,i);
+      var stiffB=1.1+i*0.07, dampB=0.55+i*0.03;
+      spb.vx+=(spb.ax-spb.px)*stiffB*dt-spb.vx*dampB*dt;
+      spb.vy+=(spb.ay-spb.py)*stiffB*dt-spb.vy*dampB*dt;
+      spb.px+=spb.vx*dt; spb.py+=spb.vy*dt;
+      var dB=Math.sqrt(spb.px*spb.px+spb.py*spb.py);
+      var limB=Math.min(W,H)*0.76;
+      if(dB>limB){ var ovB=(dB-limB)/limB; spb.vx-=(spb.px/dB)*ovB*stiffB*3*dt; spb.vy-=(spb.py/dB)*ovB*stiffB*3*dt; }
+      bdX=CX+spb.px; bdY=CY+spb.py;
+      var spdB2=Math.sqrt(spb.vx*spb.vx+spb.vy*spb.vy);
+      bsc=0.85+0.4*(spdB2/(Math.min(W,H)*0.5));
+      balp=0.8+0.2*Math.sin(t*1.3+i*0.9);
+    } else if(mode==='returning'){
+      var stRB=12+i*1.0, daRB=2.2;
+      spb.vx+=(0-spb.px)*stRB*dt-spb.vx*daRB*dt;
+      spb.vy+=(0-spb.py)*stRB*dt-spb.vy*daRB*dt;
+      spb.px+=spb.vx*dt; spb.py+=spb.vy*dt;
+      bdX=CX+spb.px; bdY=CY+spb.py;
+      var spdB3=Math.sqrt(spb.vx*spb.vx+spb.vy*spb.vy);
+      bsc=0.85+0.35*(spdB3/(Math.min(W,H)*0.5));
+      balp=0.6+0.4*easeOutCubic(Math.min(1,returnT/RETURN_DUR));
+    } else {
+      spb.vx*=0.88; spb.vy*=0.88; spb.px+=spb.vx*dt; spb.py+=spb.vy*dt;
+      bdX=CX+spb.px; bdY=CY+spb.py; bsc=1; balp=1;
+    }
+    bDrawX.push(bdX); bDrawY.push(bdY); bSc.push(bsc); bAlp.push(balp);
+  }
+  // Draw blue strings
+  var showStringsB=(mode==='scattered'||mode==='returning');
+  var perspScaleB=FOV/(FOV+200);
+  if(showStringsB){
+    for(var i=0;i<NUM;i++){
+      var bdx=bDrawX[i]-CX, bdy=bDrawY[i]-CY;
+      var bd=Math.sqrt(bdx*bdx+bdy*bdy);
+      var bsa=Math.min(1,bd/(Math.min(W,H)*0.04))*bAlp[i];
+      if(bsa<0.01) continue;
+      var bvisR=perspScaleB*baseRadius*sphereScale(i)*bSc[i];
+      var bnx=bd>0?bdx/bd:0, bny=bd>0?bdy/bd:0;
+      ctx.save();
+      ctx.strokeStyle='rgba(30,100,255,'+bsa+')';
+      ctx.lineWidth=0.75; ctx.shadowBlur=0;
+      ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(bDrawX[i]-bnx*bvisR, bDrawY[i]-bny*bvisR); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  // Draw blue spheres
+  for(var i=0;i<NUM;i++){
+    var spb2=spheresB[i];
+    var rblu=baseRadius*sphereScale(i);
+    var pblu=buildPaths(spb2,rblu);
+    var bablu=bAlp[i]*(0.85+0.15*pulse);
+    strokePaths(pblu,bDrawX[i],bDrawY[i],bSc[i],[30,100,255],1.0-i*0.05,bablu);
   }
 
-  drawX=CX+sp.px; drawY=CY+sp.py;
-  // Scale subtly follows speed
-  var spd=Math.sqrt(sp.vx*sp.vx+sp.vy*sp.vy);
-  sc=0.85+0.4*(spd/(Math.min(W,H)*0.5));
-  alp=0.8+0.2*Math.sin(t*1.3+i*0.9);
+  var spDrawX=[], spDrawY=[], spSc=[], spAlp=[], spCol=[];
+  var showStrings = (mode==='scattered'||mode==='returning');
 
-} else if(mode==='returning'){
-  // Spring snaps to center: stiffer + still underdamped = bouncy 2s return
-  var stiffR = 12 + i*1.0;
-  var dampR  = 2.2; // low damping = visible oscillation on the way home
+  // Advance return timer
+  if(mode==='returning'){
+    returnT+=dt;
+    if(returnT>=RETURN_DUR){ mode='idle'; returnT=0; }
+  }
 
-  sp.vx += (0 - sp.px)*stiffR*dt - sp.vx*dampR*dt;
-  sp.vy += (0 - sp.py)*stiffR*dt - sp.vy*dampR*dt;
-  sp.px += sp.vx*dt;
-  sp.py += sp.vy*dt;
+  for(var i=0;i<NUM;i++){
+    var sp=spheres[i];
+    var frac=i/(NUM-1);
+    // 3-axis rotation — rates set at burst time
+    sp.aY += sp.spinY*(dt/0.016);
+    sp.aX += sp.spinX*(dt/0.016);
+    sp.aZ += sp.spinZ*(dt/0.016);
 
-  drawX=CX+sp.px; drawY=CY+sp.py;
-  var spd2=Math.sqrt(sp.vx*sp.vx+sp.vy*sp.vy);
-  sc=0.85+0.35*(spd2/(Math.min(W,H)*0.5));
-  var rp=Math.min(1,returnT/RETURN_DUR);
-  alp=0.6+0.4*easeOutCubic(rp);
+    var drawX=CX, drawY=CY, sc=1, alp=1;
 
-} else {
-  // Idle: gently bleed off any remaining velocity
-  sp.vx*=0.88; sp.vy*=0.88;
-  sp.px+=sp.vx*dt; sp.py+=sp.vy*dt;
-  drawX=CX+sp.px; drawY=CY+sp.py;
-  sc=1; alp=1;
+    if(mode==='scattered'){
+      // Re-pick anchor periodically
+      sp.anchorT-=dt;
+      if(sp.anchorT<=0) pickAnchor(sp,i);
+
+      // Underdamped spring: low stiffness + low damping = slow, elastic, bouncy
+      // stiffness ~1.1–1.8 gives long lazy oscillations (~4–6s period)
+      var stiff = 1.1 + i*0.07;
+      var damp  = 0.55 + i*0.03; // well underdamped: rings many times
+
+      sp.vx += (sp.ax - sp.px)*stiff*dt - sp.vx*damp*dt;
+      sp.vy += (sp.ay - sp.py)*stiff*dt - sp.vy*damp*dt;
+      sp.px += sp.vx*dt;
+      sp.py += sp.vy*dt;
+
+      // Soft boundary: gentle nudge back if too far
+      var d=Math.sqrt(sp.px*sp.px+sp.py*sp.py);
+      var limit=Math.min(W,H)*0.76;
+      if(d>limit){
+        var over=(d-limit)/limit;
+        sp.vx-=(sp.px/d)*over*stiff*3*dt;
+        sp.vy-=(sp.py/d)*over*stiff*3*dt;
+      }
+
+      drawX=CX+sp.px; drawY=CY+sp.py;
+      // Scale subtly follows speed
+      var spd=Math.sqrt(sp.vx*sp.vx+sp.vy*sp.vy);
+      sc=0.85+0.4*(spd/(Math.min(W,H)*0.5));
+      alp=0.8+0.2*Math.sin(t*1.3+i*0.9);
+
+    } else if(mode==='returning'){
+      // Spring snaps to center: stiffer + still underdamped = bouncy 2s return
+      var stiffR = 12 + i*1.0;
+      var dampR  = 2.2; // low damping = visible oscillation on the way home
+
+      sp.vx += (0 - sp.px)*stiffR*dt - sp.vx*dampR*dt;
+      sp.vy += (0 - sp.py)*stiffR*dt - sp.vy*dampR*dt;
+      sp.px += sp.vx*dt;
+      sp.py += sp.vy*dt;
+
+      drawX=CX+sp.px; drawY=CY+sp.py;
+      var spd2=Math.sqrt(sp.vx*sp.vx+sp.vy*sp.vy);
+      sc=0.85+0.35*(spd2/(Math.min(W,H)*0.5));
+      var rp=Math.min(1,returnT/RETURN_DUR);
+      alp=0.6+0.4*easeOutCubic(rp);
+
+    } else {
+      // Idle: gently bleed off any remaining velocity
+      sp.vx*=0.88; sp.vy*=0.88;
+      sp.px+=sp.vx*dt; sp.py+=sp.vy*dt;
+      drawX=CX+sp.px; drawY=CY+sp.py;
+      sc=1; alp=1;
+    }
+
+    spDrawX.push(drawX); spDrawY.push(drawY);
+    spSc.push(sc); spAlp.push(alp);
+    spCol.push(fireColor(frac,t,i));
+  }
+
+  // ── Collision resolution (scattered + returning) ──────────────────────────
+  // Treat each sphere as a circle with radius = perspScale * baseRadius * pow(0.9,i) * sc
+  // Resolve overlaps with elastic impulse in 2D (px/py space)
+  var perspScale2 = FOV/(FOV+200);
+  if(mode==='scattered' || mode==='returning'){
+    for(var ci=0; ci<NUM; ci++){
+      for(var cj=ci+1; cj<NUM; cj++){
+        var spi=spheres[ci], spj=spheres[cj];
+        var ri = perspScale2 * baseRadius*sphereScale(ci) * spSc[ci];
+        var rj = perspScale2 * baseRadius*sphereScale(cj) * spSc[cj];
+        var minDist = ri + rj;
+        var cdx = spi.px - spj.px;
+        var cdy = spi.py - spj.py;
+        var dist = Math.sqrt(cdx*cdx + cdy*cdy);
+        if(dist < minDist && dist > 0.001){
+          // Overlap amount
+          var overlap = minDist - dist;
+          var nx2 = cdx/dist, ny2 = cdy/dist;
+          // Push apart proportionally to mass (larger sphere = less pushed)
+          var massI = sphereScale(ci), massJ = sphereScale(cj);
+          var totalMass = massI + massJ;
+          spi.px += nx2 * overlap * (massJ/totalMass);
+          spi.py += ny2 * overlap * (massJ/totalMass);
+          spj.px -= nx2 * overlap * (massI/totalMass);
+          spj.py -= ny2 * overlap * (massI/totalMass);
+          // Elastic velocity exchange along collision normal
+          var relVx = spi.vx - spj.vx;
+          var relVy = spi.vy - spj.vy;
+          var relVn = relVx*nx2 + relVy*ny2; // relative vel along normal
+          if(relVn < 0){ // approaching
+            var restitution = 0.72; // bounciness
+            var impulse = -(1+restitution)*relVn / (1/massI + 1/massJ);
+            spi.vx += (impulse/massI)*nx2;
+            spi.vy += (impulse/massI)*ny2;
+            spj.vx -= (impulse/massJ)*nx2;
+            spj.vy -= (impulse/massJ)*ny2;
+            // Spin change on collision — impact adds angular kick
+            var impactSpd = Math.abs(impulse) / ((massI+massJ)*0.5);
+            spi.spinY += (Math.random()-0.5)*impactSpd*0.04;
+            spi.spinX += (Math.random()-0.5)*impactSpd*0.04;
+            spj.spinY += (Math.random()-0.5)*impactSpd*0.04;
+            spj.spinX += (Math.random()-0.5)*impactSpd*0.04;
+          }
+          // Update draw positions after resolution
+          spDrawX[ci]=CX+spi.px; spDrawY[ci]=CY+spi.py;
+          spDrawX[cj]=CX+spj.px; spDrawY[cj]=CY+spj.py;
+        }
+      }
+    }
+  }
+
+  // Strings — attach to the perimeter of each sphere facing the center
+  // visR = perspective_scale * 3d_radius * draw_scale
+  // perspective_scale for equator point (z=0): FOV/(FOV+200)
+  var perspScale = FOV/(FOV+200);
+  if(showStrings){
+    for(var i=0;i<NUM;i++){
+      var col=spCol[i];
+      var dx=spDrawX[i]-CX, dy=spDrawY[i]-CY;
+      var d=Math.sqrt(dx*dx+dy*dy);
+      var sa=Math.min(1,d/(Math.min(W,H)*0.04))*spAlp[i];
+      if(sa<0.01) continue;
+      var visR = perspScale * baseRadius*sphereScale(i) * spSc[i];
+      var nx = d>0 ? dx/d : 0, ny = d>0 ? dy/d : 0;
+      // Endpoint: on the sphere surface closest to CX,CY
+      var ex = spDrawX[i] - nx*visR;
+      var ey = spDrawY[i] - ny*visR;
+      ctx.save();
+      ctx.strokeStyle='rgba('+col[0]+','+col[1]+','+col[2]+','+sa+')';
+      ctx.lineWidth=0.75; ctx.shadowBlur=0;
+      ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(ex,ey); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Spheres
+  for(var i=0;i<NUM;i++){
+    var sp=spheres[i];
+    var radius=baseRadius*sphereScale(i);
+    var paths=buildPaths(sp,radius);
+    var ba=spAlp[i]*(0.85+0.15*pulse);
+    strokePaths(paths,spDrawX[i],spDrawY[i],spSc[i],spCol[i],1.0-i*0.05,ba);
+  }
+
+  // Green pixels in front of everything red
+  drawGreenFront();
 }
 
-spDrawX.push(drawX); spDrawY.push(drawY);
-spSc.push(sc); spAlp.push(alp);
-spCol.push(fireColor(frac,t,i));
-```
-
-}
-
-// ── Collision resolution (scattered + returning) ──────────────────────────
-// Treat each sphere as a circle with radius = perspScale * baseRadius * pow(0.9,i) * sc
-// Resolve overlaps with elastic impulse in 2D (px/py space)
-var perspScale2 = FOV/(FOV+200);
-if(mode===‘scattered’ || mode===‘returning’){
-for(var ci=0; ci<NUM; ci++){
-for(var cj=ci+1; cj<NUM; cj++){
-var spi=spheres[ci], spj=spheres[cj];
-var ri = perspScale2 * baseRadius*sphereScale(ci) * spSc[ci];
-var rj = perspScale2 * baseRadius*sphereScale(cj) * spSc[cj];
-var minDist = ri + rj;
-var cdx = spi.px - spj.px;
-var cdy = spi.py - spj.py;
-var dist = Math.sqrt(cdx*cdx + cdy*cdy);
-if(dist < minDist && dist > 0.001){
-// Overlap amount
-var overlap = minDist - dist;
-var nx2 = cdx/dist, ny2 = cdy/dist;
-// Push apart proportionally to mass (larger sphere = less pushed)
-var massI = sphereScale(ci), massJ = sphereScale(cj);
-var totalMass = massI + massJ;
-spi.px += nx2 * overlap * (massJ/totalMass);
-spi.py += ny2 * overlap * (massJ/totalMass);
-spj.px -= nx2 * overlap * (massI/totalMass);
-spj.py -= ny2 * overlap * (massI/totalMass);
-// Elastic velocity exchange along collision normal
-var relVx = spi.vx - spj.vx;
-var relVy = spi.vy - spj.vy;
-var relVn = relVx*nx2 + relVy*ny2; // relative vel along normal
-if(relVn < 0){ // approaching
-var restitution = 0.72; // bounciness
-var impulse = -(1+restitution)*relVn / (1/massI + 1/massJ);
-spi.vx += (impulse/massI)*nx2;
-spi.vy += (impulse/massI)*ny2;
-spj.vx -= (impulse/massJ)*nx2;
-spj.vy -= (impulse/massJ)*ny2;
-// Spin change on collision — impact adds angular kick
-var impactSpd = Math.abs(impulse) / ((massI+massJ)*0.5);
-spi.spinY += (Math.random()-0.5)*impactSpd*0.04;
-spi.spinX += (Math.random()-0.5)*impactSpd*0.04;
-spj.spinY += (Math.random()-0.5)*impactSpd*0.04;
-spj.spinX += (Math.random()-0.5)*impactSpd*0.04;
-}
-// Update draw positions after resolution
-spDrawX[ci]=CX+spi.px; spDrawY[ci]=CY+spi.py;
-spDrawX[cj]=CX+spj.px; spDrawY[cj]=CY+spj.py;
-}
-}
-}
-}
-
-// Strings — attach to the perimeter of each sphere facing the center
-// visR = perspective_scale * 3d_radius * draw_scale
-// perspective_scale for equator point (z=0): FOV/(FOV+200)
-var perspScale = FOV/(FOV+200);
-if(showStrings){
-for(var i=0;i<NUM;i++){
-var col=spCol[i];
-var dx=spDrawX[i]-CX, dy=spDrawY[i]-CY;
-var d=Math.sqrt(dx*dx+dy*dy);
-var sa=Math.min(1,d/(Math.min(W,H)*0.04))*spAlp[i];
-if(sa<0.01) continue;
-var visR = perspScale * baseRadius*sphereScale(i) * spSc[i];
-var nx = d>0 ? dx/d : 0, ny = d>0 ? dy/d : 0;
-// Endpoint: on the sphere surface closest to CX,CY
-var ex = spDrawX[i] - nx*visR;
-var ey = spDrawY[i] - ny*visR;
-ctx.save();
-ctx.strokeStyle=‘rgba(’+col[0]+’,’+col[1]+’,’+col[2]+’,’+sa+’)’;
-ctx.lineWidth=0.75; ctx.shadowBlur=0;
-ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(ex,ey); ctx.stroke();
-ctx.restore();
-}
-}
-
-// Spheres
-for(var i=0;i<NUM;i++){
-var sp=spheres[i];
-var radius=baseRadius*sphereScale(i);
-var paths=buildPaths(sp,radius);
-var ba=spAlp[i]*(0.85+0.15*pulse);
-strokePaths(paths,spDrawX[i],spDrawY[i],spSc[i],spCol[i],1.0-i*0.05,ba);
-}
-
-// Green pixels in front of everything red
-drawGreenFront();
-}
-
-window.addEventListener(‘resize’, resize);
-window.addEventListener(‘click’, onInteract);
-window.addEventListener(‘touchstart’,function(e){e.preventDefault();onInteract();},{passive:false});
+window.addEventListener('resize', resize);
+window.addEventListener('click', onInteract);
+window.addEventListener('touchstart',function(e){e.preventDefault();onInteract();},{passive:false});
 resize();
 requestAnimationFrame(function(ts){prevT=ts;animate(ts);});
 </script>
-
 </body>
 </html>
