@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>3D Ocean Terrain Screensaver</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#4A1003; }
+  canvas { position:fixed; top:0; left:0; display:block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+
+// ============================================================
+// CONFIG — palette (unchanged brand colors)
+// ============================================================
+var COLOR_SHADOW  = [0x5B, 0x02, 0x02]; // deep troughs / far fog
+var COLOR_BRAND   = [0xDE, 0x4C, 0x00]; // dominant brand orange
+var COLOR_LIGHT   = [0xF2, 0x86, 0x3D]; // sunlit wave faces
+var COLOR_GLOW    = [0xFC, 0xE7, 0xCE]; // warm cream crest highlight
+var COLOR_SKY_TOP = [0x3C, 0x0B, 0x02]; // deepest fade tone
+var COLOR_DOTS    = [0xFF, 0xFF, 0xFF]; // dots are always pure white
+
+// ============================================================
+// CONFIG — geometry / camera
+// ============================================================
+var COLS = 412;                  // grid columns (x)
+var ROWS = 181;                  // grid rows (depth / z) — 412×181 ≈ 74.6k dots
+var WORLD_HALF_WIDTH = 1650;     // world units, left-right extent
+var DRIFT_SPEED = 0.052;         // world units per ms — constant forward-sailing drift
+var PARALLAX_FAR_FACTOR = 0.10;  // far rows drift at this fraction of the near-row speed
+var Z_CALIBRATION = 260;         // reference depth used to size SCALE for full-width coverage
+var Z_NEAR = 70;                 // closest sampled row
+var Z_FAR = 6200;                // farthest row distance from camera
+var CAM_HEIGHT = 3700;           // world units — camera altitude above mean sea level
+var XZ_SPREAD_MIN = 0;           // 0 = every row spans full width
+
+// Camera in a rough sea — heavier bob and sway, like riding the swell
+var BOB_AMP1 = 170, BOB_SPEED1 = 0.00030;
+var BOB_AMP2 = 95,  BOB_SPEED2 = 0.00049;
+var SWAY_AMP = 0.020, SWAY_SPEED = 0.00021;   // fraction of screen width
+var HORIZON_BOB = 12, HORIZON_SPEED = 0.00026; // px
+
+// ============================================================
+// CONFIG — Gerstner wave field
+// Each wave: [amplitude, dirX, dirZ, wavelength, angular speed, steepness 0..1]
+// Speeds loosely follow deep-water dispersion (long swells roll slow and
+// stately, short chop scurries), which is what makes real seas read as real.
+// Steepness (Q) horizontally gathers points toward crests — sharp peaked
+// crests, wide flat troughs — the signature Gerstner silhouette.
+// ============================================================
+var GERSTNER = [
+  [480, 0.00,  1.00, 6000, 0.00092, 0.85],  // primary long swell rolling toward camera
+  [360, 0.42,  0.91, 4200, 0.00120, 0.80],  // secondary swell, quartering angle
+  [270, -0.55, 0.84, 2600, 0.00160, 0.75],  // cross swell from the other side
+  [190, 0.85,  0.53, 1500, 0.00220, 0.70],  // mid wind-wave
+  [135, -0.30, 0.95, 1000, 0.00278, 0.65],  // mid wind-wave, opposing skew
+  [ 90, 0.97, -0.26,  620, 0.00362, 0.60],  // short chop crossing laterally
+  [ 62, -0.71, 0.70,  400, 0.00460, 0.55],  // finer chop
+  [ 42, 0.20, -0.98,  260, 0.00575, 0.50]   // finest ripple layer
+];
+
+// --- storm chaos ------------------------------------------------
+// Every load rolls new dice: wave directions, speeds and phases are
+// jittered so no two runs of the screensaver are the same sea.
+var DIR_JITTER = 0.45;        // radians of random rotation per wave direction
+var SPEED_JITTER = 0.30;      // ±30% random speed per wave
+// Each wave system independently surges and fades (its own slow envelope),
+// so different swells rise, collide and collapse against each other.
+var SURGE_DEPTH = 0.42;       // per-wave amplitude swing (±42%)
+var SURGE_SPEED_MIN = 0.00006, SURGE_SPEED_MAX = 0.00024;
+// A traveling wave-group envelope sweeps through and stacks everything
+// under it — the "set waves" of a storm. Where it peaks, combined
+// steepness briefly exceeds the breaking limit and crests genuinely
+// fold over themselves: dots pile over dots, buried in foam and spray.
+var GROUP_WAVELENGTH = 3400, GROUP_SPEED = 0.00052, GROUP_DEPTH = 0.40;
+var GROUP_DX = 0.28, GROUP_DZ = 0.96;
+// Breaking crests fling spray: heavily-foamed points get thrown upward
+// with a flickering jitter.
+var SPRAY_START = 0.5;        // foam level where spray begins
+var SPRAY_HEIGHT = 560;       // world units of maximum fling
+var SPRAY_FLICKER = 0.0063;
+
+var BREATH_SPEED = 0.000105;   // whole-sea amplitude breathing — faster, deeper surges
+var BREATH_DEPTH = 0.30;
+
+// fine noise shimmer (only applied to nearer water, where it's visible)
+var CHOP_AMP = 58, CHOP_FREQ = 0.0042, CHOP_DRIFT = 0.00026;
+
+// lighting
+var SUN_LX = -0.38, SUN_LY = 0.80, SUN_LZ = -0.46;  // normalized-ish below
+var GLOW_PULSE_SPEED = 0.00009;
+var COLOR_PULSE_SPEED = 0.000034;
+var ROTATE_SPEED = 0.0000105;
+
+// foam — where Gerstner crests pinch (low Jacobian), water whitens & sparkles
+var FOAM_START = 0.75;   // jacobian threshold where foam begins
+var FOAM_GAIN  = 1.6;
+
+// normalize sun vector once
+(function () {
+  var l = Math.sqrt(SUN_LX * SUN_LX + SUN_LY * SUN_LY + SUN_LZ * SUN_LZ);
+  SUN_LX /= l; SUN_LY /= l; SUN_LZ /= l;
+})();
+
+// half-vector for cheap specular (sun blended with view direction 0,0.35,-1)
+var HALF_X, HALF_Y, HALF_Z;
+(function () {
+  var vx = 0, vy = 0.35, vz = -1;
+  var vl = Math.sqrt(vx * vx + vy * vy + vz * vz);
+  vx /= vl; vy /= vl; vz /= vl;
+  var hx = SUN_LX + vx, hy = SUN_LY + vy, hz = SUN_LZ + vz;
+  var hl = Math.sqrt(hx * hx + hy * hy + hz * hz);
+  HALF_X = hx / hl; HALF_Y = hy / hl; HALF_Z = hz / hl;
+})();
+
+// ============================================================
+// PERLIN NOISE — fine surface shimmer on near water
+// ============================================================
+var perm = new Array(512);
+(function initNoise() {
+  var p = [];
+  var i;
+  for (i = 0; i < 256; i++) { p[i] = i; }
+  for (i = 255; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = p[i]; p[i] = p[j]; p[j] = tmp;
+  }
+  for (i = 0; i < 512; i++) { perm[i] = p[i & 255]; }
+})();
+function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+function lerp(a, b, t) { return a + t * (b - a); }
+function grad2(hash, x, y) {
+  var h = hash & 7;
+  var u = h < 4 ? x : y;
+  var v = h < 4 ? y : x;
+  return ((h & 1) ? -u : u) + ((h & 2) ? -2.0 * v : 2.0 * v);
+}
+function noise2D(x, y) {
+  var X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+  x -= Math.floor(x); y -= Math.floor(y);
+  var u = fade(x), v = fade(y);
+  var aa = perm[X + perm[Y]], ab = perm[X + perm[Y + 1]];
+  var ba = perm[X + 1 + perm[Y]], bb = perm[X + 1 + perm[Y + 1]];
+  var x1 = lerp(grad2(aa, x, y), grad2(ba, x - 1, y), u);
+  var x2 = lerp(grad2(ab, x, y - 1), grad2(bb, x - 1, y - 1), u);
+  return (lerp(x1, x2, v) + 1) * 0.5; // 0..1
+}
+
+// ============================================================
+// GERSTNER WAVE FIELD
+// Precomputed flat coefficient arrays, refreshed once per frame so the
+// slow amplitude "breathing" costs nothing per point.
+// Per point we accumulate:
+//   height, horizontal crest-gathering offset (the fluid look),
+//   analytic slope for normals, and the Jacobian for foam detection.
+// ============================================================
+var NW = GERSTNER.length;
+var NWE = NW + 1;  // last slot carries the traveling wave-group envelope phasor
+var gKx = new Array(NWE), gKz = new Array(NWE), gPh = new Array(NWE);
+var gAmp = new Array(NWE), gQAx = new Array(NWE);
+var gDx = new Array(NWE), gDz = new Array(NWE), gJ = new Array(NWE);
+var dS = new Array(NWE), dC = new Array(NWE);   // per-grid-step phase rotation
+var wS = new Array(NWE), wC = new Array(NWE);   // seamless-wrap phase rotation
+var phS = new Array(NWE), phC = new Array(NWE); // running phasors within a row
+var basePhase = new Array(NWE);                 // random per-load phase offsets
+var surgeSpd = new Array(NW), surgePh = new Array(NW); // per-wave surge envelopes
+
+(function initWaves() {
+  var w, sumQkA = 0;
+  for (w = 0; w < NW; w++) {
+    var def = GERSTNER[w];
+    // roll the dice: jitter direction, speed and phase so every load
+    // is a different sea
+    var ang = Math.atan2(def[1], def[2]) + (Math.random() - 0.5) * 2 * DIR_JITTER;
+    var dx = Math.sin(ang), dz = Math.cos(ang);
+    var omega = def[4] * (1 + (Math.random() - 0.5) * 2 * SPEED_JITTER);
+    var k = (Math.PI * 2) / def[3];
+    GERSTNER[w] = { amp: def[0], dx: dx, dz: dz, k: k, omega: omega, q: def[5] };
+    gKx[w] = dx * k;
+    gKz[w] = dz * k;
+    basePhase[w] = Math.random() * Math.PI * 2;
+    surgeSpd[w] = SURGE_SPEED_MIN + Math.random() * (SURGE_SPEED_MAX - SURGE_SPEED_MIN);
+    surgePh[w] = Math.random() * Math.PI * 2;
+    sumQkA += def[5] * def[0] * k;
+  }
+  // Envelope slot: a long slow wave whose phasor rides along in the same
+  // rotation machinery. It contributes no height directly (zero coeffs);
+  // instead its sine multiplies the whole sea, sweeping stacked "set
+  // waves" through the scene.
+  var gk = (Math.PI * 2) / GROUP_WAVELENGTH;
+  var gdl = Math.sqrt(GROUP_DX * GROUP_DX + GROUP_DZ * GROUP_DZ);
+  gKx[NW] = (GROUP_DX / gdl) * gk;
+  gKz[NW] = (GROUP_DZ / gdl) * gk;
+  basePhase[NW] = Math.random() * Math.PI * 2;
+  gAmp[NW] = 0; gQAx[NW] = 0; gDx[NW] = 0; gDz[NW] = 0; gJ[NW] = 0;
+
+  // Normalize baseline steepness to 0.90. The surge and group envelopes
+  // deliberately push transient crests PAST the breaking limit — for those
+  // moments the Gerstner mapping folds and dots literally crash over each
+  // other, buried under foam and spray. That's the storm.
+  var qScale = 1.26 / (sumQkA * (1 + BREATH_DEPTH));
+  for (w = 0; w < NW; w++) { GERSTNER[w].q *= qScale; }
+
+  // Incremental phasors: the grid is uniform in x, so along a row each
+  // wave's phase advances by a constant angle per point. We take real
+  // sin/cos once per row to seed, then rotate with multiply-adds —
+  // ~600k trig calls per frame collapse into ~1k.
+  var span = WORLD_HALF_WIDTH * 2;
+  var stepX = span / (COLS - 1);
+  for (w = 0; w < NWE; w++) {
+    dS[w] = Math.sin(gKx[w] * stepX); dC[w] = Math.cos(gKx[w] * stepX);
+    wS[w] = Math.sin(-gKx[w] * span); wC[w] = Math.cos(-gKx[w] * span);
+  }
+})();
+
+function refreshWaveCoeffs(t, ampMod) {
+  var w;
+  for (w = 0; w < NW; w++) {
+    var g = GERSTNER[w];
+    // each wave system independently surges and fades
+    var surge = 1 + SURGE_DEPTH * Math.sin(t * surgeSpd[w] + surgePh[w]);
+    var A = g.amp * ampMod * surge;
+    gPh[w] = t * g.omega + basePhase[w];
+    gAmp[w] = A;
+    gQAx[w] = g.q * A * g.dx;           // horizontal displacement coefficient
+    gDx[w] = A * g.k * g.dx;            // slope x
+    gDz[w] = A * g.k * g.dz;            // slope z
+    gJ[w]  = g.q * A * g.k;             // jacobian pinch
+  }
+  // envelope slot: phase advances, coefficients stay zero
+  gPh[NW] = t * GROUP_SPEED + basePhase[NW];
+}
+
+// Seed the running phasors with exact trig at a row's first (wrapped) x.
+function seedRowPhasors(px, z) {
+  var w, ph;
+  for (w = 0; w < NWE; w++) {
+    ph = gKx[w] * px + gKz[w] * z + gPh[w];
+    phS[w] = Math.sin(ph);
+    phC[w] = Math.cos(ph);
+  }
+}
+
+// Exact-trig reference (not used in the hot loop; kept for verification
+// and for anyone tweaking the wave field). Includes the group envelope.
+var gwOut = [0, 0, 0, 0, 1];
+function computeGerstner(x, z) {
+  var y = 0, xo = 0, dhx = 0, dhz = 0, jac = 1;
+  var w, ph, s, c;
+  for (w = 0; w < NW; w++) {
+    ph = gKx[w] * x + gKz[w] * z + gPh[w];
+    s = Math.sin(ph); c = Math.cos(ph);
+    y   += gAmp[w] * s;
+    xo  += gQAx[w] * c;
+    dhx += gDx[w] * c;
+    dhz += gDz[w] * c;
+    jac -= gJ[w] * s;
+  }
+  var grp = 1 + GROUP_DEPTH * Math.sin(gKx[NW] * x + gKz[NW] * z + gPh[NW]);
+  gwOut[0] = y * grp; gwOut[1] = xo * grp; gwOut[2] = dhx * grp; gwOut[3] = dhz * grp;
+  gwOut[4] = 1 - (1 - jac) * grp;
+  return gwOut;
+}
+
+// ============================================================
+// CANVAS / CAMERA SETUP
+// ============================================================
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d', { alpha: false });
+var DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+var W = 0, H = 0;
+var SCALE = 1;
+var horizonBase = 0;
+var terrainRows = []; // array of rows, each row = array of {x, z, jphase}
+var glowCX = 0, glowCY = 0, glowR = 0;
+
+function buildTerrain() {
+  terrainRows = [];
+  var j, i;
+  for (j = 0; j < ROWS; j++) {
+    var zt = j / (ROWS - 1);
+    var z = Z_NEAR * Math.pow(Z_FAR / Z_NEAR, zt);
+    var row = [];
+    var stagger = (j % 2) ? (WORLD_HALF_WIDTH / COLS) : 0;
+    for (i = 0; i < COLS; i++) {
+      var x = -WORLD_HALF_WIDTH + (i / (COLS - 1)) * 2 * WORLD_HALF_WIDTH + stagger;
+      row.push({ x: x, z: z, jphase: Math.random() * Math.PI * 2 });
+    }
+    terrainRows.push(row);
+  }
+}
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  SCALE = (W * 0.5 * Z_CALIBRATION) / WORLD_HALF_WIDTH;
+  horizonBase = H * 0.30;
+  buildTerrain();
+}
+window.addEventListener('resize', resize);
+
+// ============================================================
+// COLOR HELPERS
+// ============================================================
+function rgbaStr(c, a) { return 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a + ')'; }
+function lerpColor(c1, c2, t) {
+  return [c1[0] + (c2[0] - c1[0]) * t, c1[1] + (c2[1] - c1[1]) * t, c1[2] + (c2[2] - c1[2]) * t];
+}
+
+// ============================================================
+// LIGHTING — vertical gradient (bright warm top fading to deep
+// shadow at the bottom), plus a tracked glow position that gives
+// the dots a soft directional highlight from above.
+// ============================================================
+function updateGlowPosition(t) {
+  var pulse = Math.sin(t * GLOW_PULSE_SPEED) * 0.5 + 0.5;
+  glowCX = W * (0.42 + 0.05 * Math.sin(t * GLOW_PULSE_SPEED * 0.7));
+  glowCY = -H * (0.04 + 0.03 * pulse);
+  glowR = Math.max(W, H) * (1.15 + 0.06 * pulse);
+}
+
+function updateLighting(t) {
+  updateGlowPosition(t);
+
+  var warmT = 0.5 + 0.5 * Math.sin(t * COLOR_PULSE_SPEED);
+  var top = lerpColor(COLOR_LIGHT, COLOR_GLOW, 0.30 + warmT * 0.06);
+  var mid = lerpColor(COLOR_BRAND, COLOR_LIGHT, 0.20 + warmT * 0.06);
+  // Foreground: near-black deep navy — the darkest possible backdrop for
+  // the white dots, with just enough blue to read as night water.
+  var bottom = lerpColor([3, 7, 22], [6, 12, 34], warmT * 0.5);
+
+  var g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0.00, rgbaStr(top, 1));
+  g.addColorStop(0.16, rgbaStr(lerpColor(top, mid, 0.55), 1));
+  g.addColorStop(0.34, rgbaStr(mid, 1));
+  g.addColorStop(0.54, rgbaStr(lerpColor(mid, bottom, 0.68), 1));
+  g.addColorStop(0.76, rgbaStr(bottom, 1));
+  g.addColorStop(1.00, rgbaStr([1, 3, 12], 1));
+  return g;
+}
+
+// Slow rotating color-wheel overlay — very faint, keeps the gradient
+// feeling quietly alive without reading as "colorful".
+function drawRotatingCycle(t) {
+  if (!ctx.createConicGradient) return;
+  var angle = t * ROTATE_SPEED;
+  var cx = W * 0.5, cy = H * 0.56;
+  var cg = ctx.createConicGradient(angle, cx, cy);
+  cg.addColorStop(0.00, rgbaStr(COLOR_BRAND, 1));
+  cg.addColorStop(0.20, rgbaStr(COLOR_LIGHT, 1));
+  cg.addColorStop(0.42, rgbaStr(COLOR_GLOW, 1));
+  cg.addColorStop(0.64, rgbaStr(COLOR_SHADOW, 1));
+  cg.addColorStop(0.85, rgbaStr(COLOR_BRAND, 1));
+  cg.addColorStop(1.00, rgbaStr(COLOR_BRAND, 1));
+  ctx.save();
+  ctx.globalAlpha = 0.045;
+  ctx.globalCompositeOperation = 'overlay';
+  ctx.fillStyle = cg;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+// ============================================================
+// TERRAIN — Gerstner-displaced grid projected to screen and drawn
+// as a blanket of dots, back-to-front. Dots are batched into alpha
+// buckets (and a separate foam pass) so the whole sea is a handful
+// of fill() calls per frame.
+// ============================================================
+var ALPHA_BUCKETS = 24;
+var bucketPaths = new Array(ALPHA_BUCKETS);
+var foamPath = null;
+
+function drawTerrain(t) {
+  var j, i, b;
+  var ampMod = 1 + BREATH_DEPTH * Math.sin(t * BREATH_SPEED);
+  refreshWaveCoeffs(t, ampMod);
+
+  // camera life
+  var camY = CAM_HEIGHT +
+    BOB_AMP1 * Math.sin(t * BOB_SPEED1) +
+    BOB_AMP2 * Math.sin(t * BOB_SPEED2 + 1.7);
+  var swayPx = W * SWAY_AMP * Math.sin(t * SWAY_SPEED);
+  var horizonY = horizonBase + HORIZON_BOB * Math.sin(t * HORIZON_SPEED + 0.6);
+
+  for (b = 0; b < ALPHA_BUCKETS; b++) { bucketPaths[b] = null; }
+  foamPath = null;
+
+  var invGlowR2 = 1 / (glowR * glowR);
+  var chopT1 = t * CHOP_DRIFT, chopT2 = t * CHOP_DRIFT * 0.63;
+
+  for (j = ROWS - 1; j >= 0; j--) {
+    var row = terrainRows[j];
+    var z = row[0].z;
+    var invZ = SCALE / z;
+    var invZforX = SCALE / (Z_NEAR + (z - Z_NEAR) * XZ_SPREAD_MIN);
+    var fogT = Math.pow(Math.min(1, (z - Z_NEAR) / (Z_FAR - Z_NEAR)), 1.5);
+    var clarity = 1 - fogT;
+    var baseRadius = 0.55 + 1.3 * Math.sqrt(invZ);
+    var span = WORLD_HALF_WIDTH * 2;
+    var driftFactor = 1 - fogT * (1 - PARALLAX_FAR_FACTOR);
+    var driftOffset = t * DRIFT_SPEED * driftFactor;
+    var doChop = clarity > 0.6;    // shimmer only where it's actually visible
+    var doFoam = clarity > 0.25;
+    var rowCX = W / 2 + swayPx * (0.4 + 0.6 * clarity); // near rows sway more
+
+    // seed this row's wave phasors with exact trig at the first point
+    var rawX0 = row[0].x - driftOffset;
+    var prevPx = rawX0 - Math.floor((rawX0 + WORLD_HALF_WIDTH) / span) * span;
+    seedRowPhasors(prevPx, z);
+
+    for (i = 0; i < COLS; i++) {
+      var pt = row[i];
+      var rawX = pt.x - driftOffset;
+      var px = rawX - Math.floor((rawX + WORLD_HALF_WIDTH) / span) * span; // seamless wrap
+      var pz = pt.z;
+      var w, s, c;
+
+      // advance phasors one grid step (multiply-add rotation, no trig)
+      // and accumulate the Gerstner sums in the same pass. The final
+      // slot (w === NW) is the group envelope: zero coefficients, so it
+      // adds nothing here — we only ride its phase.
+      var wy = 0, xoff = 0, dhx = 0, dhz = 0, jac = 1;
+      if (i > 0) {
+        if (px < prevPx - 1) {
+          // this point wrapped around the world seam — rotate by step + wrap
+          for (w = 0; w < NWE; w++) {
+            s = phS[w]; c = phC[w];
+            var s2 = s * dC[w] + c * dS[w];
+            var c2 = c * dC[w] - s * dS[w];
+            phS[w] = s2 * wC[w] + c2 * wS[w];
+            phC[w] = c2 * wC[w] - s2 * wS[w];
+            wy += gAmp[w] * phS[w]; xoff += gQAx[w] * phC[w];
+            dhx += gDx[w] * phC[w]; dhz += gDz[w] * phC[w];
+            jac -= gJ[w] * phS[w];
+          }
+        } else {
+          for (w = 0; w < NWE; w++) {
+            s = phS[w]; c = phC[w];
+            var sn = s * dC[w] + c * dS[w];
+            var cn = c * dC[w] - s * dS[w];
+            phS[w] = sn; phC[w] = cn;
+            wy += gAmp[w] * sn; xoff += gQAx[w] * cn;
+            dhx += gDx[w] * cn; dhz += gDz[w] * cn;
+            jac -= gJ[w] * sn;
+          }
+        }
+      } else {
+        for (w = 0; w < NWE; w++) {
+          wy += gAmp[w] * phS[w]; xoff += gQAx[w] * phC[w];
+          dhx += gDx[w] * phC[w]; dhz += gDz[w] * phC[w];
+          jac -= gJ[w] * phS[w];
+        }
+      }
+      prevPx = px;
+
+      // traveling wave-group envelope: where it peaks, everything under
+      // it stacks up and briefly breaks past the Gerstner fold limit —
+      // dots crash over each other under heavy foam
+      var grp = 1 + GROUP_DEPTH * phS[NW];
+      wy *= grp; xoff *= grp; dhx *= grp; dhz *= grp;
+      jac = 1 - (1 - jac) * grp;
+
+      // plunging breaker: past the fold limit (jac < 0) the crest tongue
+      // is thrown out over the wave face and curls downward — the dots
+      // visibly pitch over and crash across the water in front
+      var fold = -jac;
+      if (fold > 0) {
+        if (fold > 1.2) fold = 1.2;
+        xoff *= 1 + fold * 1.7;
+        wy -= fold * fold * 440;
+      } else { fold = 0; }
+
+      // fine perlin shimmer on the near water
+      if (doChop) {
+        var nch = noise2D(px * CHOP_FREQ + chopT1, pz * CHOP_FREQ - chopT2);
+        wy += (nch - 0.5) * 2 * CHOP_AMP * clarity;
+        dhx += (nch - 0.5) * 0.55 * clarity;
+      }
+
+      // project — Gerstner horizontal offset is what gathers dots into
+      // sharp crests and stretches them across flat troughs
+      var sx = rowCX + (px + xoff) * invZforX;
+      var sy = horizonY + (camY - wy) * invZ;
+
+      if (sx < -60 || sx > W + 60 || sy < -40 || sy > H + 220) { continue; }
+
+      // --- lighting -------------------------------------------------
+      // analytic surface normal from accumulated slopes
+      var invLen = 1 / Math.sqrt(dhx * dhx + dhz * dhz + 1);
+      var nx = -dhx * invLen, ny = invLen, nz = -dhz * invLen;
+
+      var diff = nx * SUN_LX + ny * SUN_LY + nz * SUN_LZ;
+      if (diff < 0) diff = 0;
+
+      // cheap sharp specular: (n·h)^16 via repeated squaring
+      var spec = nx * HALF_X + ny * HALF_Y + nz * HALF_Z;
+      if (spec < 0) spec = 0;
+      spec = spec * spec; spec = spec * spec; spec = spec * spec; spec = spec * spec;
+
+      // soft radial glow from the bright sky above
+      var ddx = sx - glowCX, ddy = sy - glowCY;
+      var radial = 1 - Math.min(1, (ddx * ddx + ddy * ddy) * invGlowR2);
+
+      // foam where crests pinch tight (low or negative jacobian = breaking)
+      var foam = 0;
+      if (doFoam && jac < FOAM_START) {
+        foam = (FOAM_START - jac) * FOAM_GAIN * clarity;
+        if (foam > 1.4) foam = 1.4;
+      }
+
+      // breaking crests fling spray upward with a flickering jitter
+      if (foam > SPRAY_START) {
+        var fling = (foam - SPRAY_START) * SPRAY_HEIGHT *
+          (0.55 + 0.45 * Math.sin(t * SPRAY_FLICKER + pt.jphase * 9.7));
+        sy -= fling * invZ;
+      }
+
+      var brightness = 0.16 + diff * 0.46 + spec * 0.85 + radial * 0.28 + foam * 0.55;
+      brightness *= (1 - fogT * 0.75);
+      if (brightness < 0) brightness = 0; if (brightness > 1) brightness = 1;
+
+      // per-dot twinkle, individually phased so the surface glitters
+      var tw = 0.86 + 0.14 * Math.sin(t * 0.0011 + pt.jphase);
+
+      var alpha = (0.12 + brightness * 0.88) * (1 - fogT * 0.6) * tw;
+      // slight fade at extreme pinch so packed crest lines don't fuse solid
+      alpha *= 1 - 0.22 * Math.min(1, fold);
+      if (alpha < 0) alpha = 0; if (alpha > 1) alpha = 1;
+
+      // crests thin out as they sharpen: Gerstner already packs dots
+      // densely at the peaks, so the tighter the pinch, the finer each
+      // dot — chaotic crests read as crisp bright filaments and mist
+      // instead of thick clumps
+      var pinch = 1 - jac;
+      if (pinch < 0) pinch = 0; if (pinch > 1.8) pinch = 1.8;
+      var radius = baseRadius * (0.8 + 0.35 * brightness) / (1 + pinch * 0.95);
+      if (radius < 0.35) radius = 0.35;
+      if (radius > 3.8) radius = 3.8;
+
+      if (foam > 0.45) {
+        // brightest whitecap sparkles get their own full-white pass
+        if (!foamPath) { foamPath = new Path2D(); }
+        foamPath.moveTo(sx + radius, sy);
+        foamPath.arc(sx, sy, radius, 0, Math.PI * 2);
+      } else {
+        var bIdx = (alpha * (ALPHA_BUCKETS - 1)) | 0;
+        var path = bucketPaths[bIdx];
+        if (!path) { path = new Path2D(); bucketPaths[bIdx] = path; }
+        path.moveTo(sx + radius, sy);
+        path.arc(sx, sy, radius, 0, Math.PI * 2);
+      }
+    }
+  }
+
+  for (b = 0; b < ALPHA_BUCKETS; b++) {
+    var p = bucketPaths[b];
+    if (!p) continue;
+    var a = (b + 0.5) / ALPHA_BUCKETS;
+    ctx.fillStyle = rgbaStr(COLOR_DOTS, a);
+    ctx.fill(p);
+  }
+  if (foamPath) {
+    ctx.fillStyle = rgbaStr(COLOR_DOTS, 0.92);
+    ctx.fill(foamPath);
+  }
+}
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+function frame(t) {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  var lightingGrad = updateLighting(t);
+  ctx.fillStyle = lightingGrad;
+  ctx.fillRect(0, 0, W, H);
+  drawRotatingCycle(t);
+  drawTerrain(t);
+  requestAnimationFrame(frame);
+}
+
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
