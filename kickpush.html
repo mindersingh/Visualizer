@@ -253,7 +253,7 @@
   var landFlash=0, smileT=0;
   try{ best=parseInt(localStorage.getItem("kp_best")||"0",10)||0; }catch(e){ best=0; }
 
-  function tune(){ MIN_SPEED=H*0.14; MAX_SPEED=H*2.60; BOOST_MAX=MAX_SPEED*1.10; PUSH_IMP=H*0.112; DECEL=H*0.09;
+  function tune(){ MIN_SPEED=H*0.14; MAX_SPEED=H*1.95; BOOST_MAX=MAX_SPEED*1.10; PUSH_IMP=H*0.082; DECEL=H*0.09;
     HILL_A1=H*0.055; HILL_K1=TAU/(W*3.0); HILL_A2=H*0.022; HILL_K2=TAU/(W*1.5); }
   tune();
   function reset(){ tune(); scroll=0; speed=MIN_SPEED*1.5; score=0; timeLeft=GAME_SECONDS;
