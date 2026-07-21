@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KICK/PUSH — Skater-Rig v9: The New Skeleton Goes Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Inter:wght@400;500;600;700;800&family=Gochi+Hand&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0f1013; --panel:#17181c; --panel2:#1b1c21; --panel3:#212228;
+  --line:#2b2c33; --line2:#34353d;
+  --paper:#ece7dd; --paper-dim:#cfc9bd;
+  --tx:#e4e4ea; --tx-dim:#a6a7b0; --tx-faint:#74757e;
+  --red:#ed1f28; --red-deep:#7a2327; --red-bg:#2a1a1b;
+  --green:#9ad19a; --green2:#3cb44b;
+  --amber:#f7b268; --orange:#f58231;
+  --blue:#4363d8; --cyan:#29b6d8;
+  --shadow:0 12px 40px -12px rgba(0,0,0,.6);
+  --maxw:1120px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:
+    radial-gradient(1200px 600px at 78% -8%, #23242c 0%, transparent 60%),
+    radial-gradient(900px 500px at 6% 4%, #1e1f26 0%, transparent 55%),
+    var(--ink);
+  color:var(--tx); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  font-size:16px; line-height:1.62; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+a{color:#8fb8ff; text-decoration:none} a:hover{text-decoration:underline}
+h1,h2,h3,h4{line-height:1.15; margin:0}
+code,.mono{font-family:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace; font-size:.86em}
+code{background:#000; color:#e9d9a8; padding:.08em .42em; border-radius:5px; border:1px solid var(--line)}
+.mut{color:var(--tx-dim)} .faint{color:var(--tx-faint)}
+
+.topnav{position:sticky; top:0; z-index:50;
+  background:rgba(15,16,19,.96); border-bottom:1px solid var(--line)}
+.topnav .wrap{display:flex; align-items:center; gap:18px; height:56px}
+.topnav .brand{font-family:"Londrina Solid",sans-serif; font-weight:900; font-size:22px;
+  letter-spacing:.02em; color:var(--paper); white-space:nowrap}
+.topnav .brand .slash{color:var(--red)}
+.topnav nav{display:flex; gap:4px; margin-left:auto; flex-wrap:wrap; justify-content:flex-end}
+.topnav nav a{color:var(--tx-dim); font-size:12.5px; font-weight:600; padding:6px 10px;
+  border-radius:7px; letter-spacing:.02em}
+.topnav nav a:hover{color:var(--paper); background:var(--panel3); text-decoration:none}
+@media(max-width:700px){.topnav nav a{padding:6px 7px; font-size:11.5px}}
+
+.hero{padding:70px 0 30px}
+.hero .kicker{font-family:"Gochi Hand",cursive; color:var(--red); font-size:22px; transform:rotate(-2deg);
+  display:inline-block; margin-bottom:10px}
+.hero h1{font-family:"Londrina Solid",sans-serif; font-weight:900; font-size:clamp(38px,6vw,74px);
+  letter-spacing:.01em; color:var(--paper); line-height:.98}
+.hero h1 .slash{color:var(--red)}
+.hero .sub{font-size:19px; color:var(--tx-dim); max-width:840px; margin:20px 0 0}
+.hero .meta{margin-top:26px; display:flex; gap:10px; flex-wrap:wrap; font-size:12.5px}
+.hero .meta .tag{background:var(--panel2); border:1px solid var(--line2); color:var(--tx-dim);
+  padding:5px 12px; border-radius:999px}
+.hero .meta .tag b{color:var(--paper)}
+.hero .meta .tag.good{border-color:#2e5a37; background:#152119} .hero .meta .tag.good b{color:#9ad19a}
+.hero .meta .tag.hot{border-color:#6a3535; background:#241618} .hero .meta .tag.hot b{color:#f7a6a6}
+
+.plain{margin:34px 0 0; border:1px solid #2e5a37; border-radius:16px; box-shadow:var(--shadow);
+  background:linear-gradient(180deg,#152119,#141712); padding:26px 26px 20px}
+.plain .lbl{font-family:"Gochi Hand",cursive; font-size:24px; color:var(--green); display:block; margin-bottom:6px}
+.plain p{font-size:16.5px; margin:12px 0}
+.plain b{color:var(--paper)}
+
+.tldr{margin:36px 0 8px; display:grid; grid-template-columns:repeat(3,1fr); gap:16px}
+.tldr .card{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line2);
+  border-radius:14px; padding:20px 20px 18px; box-shadow:var(--shadow)}
+.tldr .card .n{font-family:"Londrina Solid",sans-serif; font-weight:900; font-size:30px; color:var(--paper)}
+.tldr .card .n small{font-size:14px; color:var(--tx-faint); font-family:"Inter"}
+.tldr .card p{margin:6px 0 0; font-size:13.5px; color:var(--tx-dim)}
+.tldr .card.good{border-color:#2e5a37} .tldr .card.good .n{color:var(--green)}
+.tldr .card.warn{border-color:#5c4a2a} .tldr .card.warn .n{color:var(--amber)}
+.tldr .card.info{border-color:#2c3f63} .tldr .card.info .n{color:#7fa6ff}
+@media(max-width:900px){.tldr{grid-template-columns:1fr}}
+
+section{padding:44px 0; border-top:1px solid var(--line); scroll-margin-top:74px}
+[id]{scroll-margin-top:74px}
+.sechead{display:flex; align-items:baseline; gap:14px; margin-bottom:8px}
+.sechead .num{font-family:"Londrina Solid",sans-serif; font-weight:900; font-size:20px; color:var(--red)}
+h2.big{font-family:"Londrina Solid",sans-serif; font-weight:900; font-size:clamp(26px,3.6vw,40px);
+  color:var(--paper); letter-spacing:.01em}
+.lead{font-size:17.5px; color:var(--tx-dim); max-width:860px; margin:14px 0 26px}
+h3.sub3{font-size:19px; color:var(--paper); margin:34px 0 10px; font-weight:700}
+p{margin:14px 0}
+
+.badge{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
+  padding:3px 9px; border-radius:999px; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap;
+  border:1px solid transparent; vertical-align:middle}
+.b-done{background:#14321f; color:#8bd39a; border-color:#2e6a45}
+.b-now{background:#3a2f12; color:#f2c877; border-color:#6a5320}
+.b-next{background:#1d2740; color:#9dbaff; border-color:#33477a}
+.b-later{background:#242530; color:#a9adcf; border-color:#3a3c52}
+.b-s{background:#14321f; color:#8bd39a; border-color:#255a34}
+.b-m{background:#3a2f12; color:#f2c877; border-color:#5c4a1f}
+.b-l{background:#3a1e14; color:#f0a487; border-color:#5c3323}
+.sha{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:11.5px; color:#c9b47a;
+  background:#191713; border:1px solid #3a3222; border-radius:5px; padding:1px 7px; white-space:nowrap}
+
+.callout{border-radius:12px; padding:18px 20px; margin:22px 0; border:1px solid var(--line2);
+  background:var(--panel2)}
+.callout .lbl{font-family:"Gochi Hand",cursive; font-size:19px; margin-bottom:2px; display:block}
+.callout.key{border-color:#5c4a2a; background:linear-gradient(180deg,#241d10,#1b1815)}
+.callout.key .lbl{color:var(--amber)}
+.callout.win{border-color:#2e5a37; background:linear-gradient(180deg,#13251a,#161a16)}
+.callout.win .lbl{color:var(--green)}
+.callout.info{border-color:#2c3f63; background:linear-gradient(180deg,#131a28,#161820)}
+.callout.info .lbl{color:#8fb8ff}
+
+.tbl{width:100%; border-collapse:collapse; margin:18px 0; font-size:13.5px; border:1px solid var(--line2); border-radius:12px; overflow:hidden}
+.tbl th{background:var(--panel3); color:var(--tx-dim); text-align:left; font-weight:700; font-size:11.5px;
+  text-transform:uppercase; letter-spacing:.05em; padding:11px 13px; border-bottom:1px solid var(--line2)}
+.tbl td{padding:12px 13px; border-bottom:1px solid var(--line); vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl td b{color:var(--paper)}
+.tbl td.n{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:12.5px; color:var(--paper); white-space:nowrap}
+.tblwrap{overflow-x:auto}
+
+.tl{list-style:none; margin:26px 0; padding:0; position:relative}
+.tl:before{content:""; position:absolute; left:9px; top:6px; bottom:6px; width:2px; background:var(--line2)}
+.tl li{position:relative; padding:0 0 26px 38px}
+.tl li:last-child{padding-bottom:0}
+.tl .dot{position:absolute; left:2px; top:5px; width:16px; height:16px; border-radius:50%;
+  background:var(--panel3); border:2px solid var(--tx-faint)}
+.tl li.big .dot{background:var(--red); border-color:var(--red)}
+.tl li.win .dot{background:#1f5138; border-color:var(--green)}
+.tl .when{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:12px; color:var(--tx-faint);
+  letter-spacing:.04em; text-transform:uppercase}
+.tl h4{font-size:16.5px; color:var(--paper); margin:2px 0 4px; font-weight:700}
+.tl p{margin:0; font-size:14px; color:var(--tx-dim); max-width:760px}
+
+footer{border-top:1px solid var(--line); padding:34px 0 60px; color:var(--tx-faint); font-size:13px}
+footer .brand{font-family:"Londrina Solid",sans-serif; font-weight:900; color:var(--paper-dim)}
+footer .slash{color:var(--red)}
+</style>
+</head>
+<body>
+
+<div class="topnav"><div class="wrap">
+  <span class="brand">KICK<span class="slash">/</span>PUSH</span>
+  <nav>
+    <a href="#now">Status</a><a href="#story">Timeline</a><a href="#done">Done</a>
+    <a href="#todo">To&nbsp;do</a><a href="#plan">Schedule</a><a href="#versions">Versions</a><a href="#paper">Docs</a>
+  </nav>
+</div></div>
+
+<div class="hero"><div class="wrap">
+  <span class="kicker">roadmap, ninth edition — july 21, 2026</span>
+  <h1>SKATER-RIG v9<span class="slash">:</span> THE NEW SKELETON GOES LIVE</h1>
+  <p class="sub">Two weeks ago this game was one giant HTML file with a stick figure in it.
+  Today the stick figure has a brand-new skeleton, a full animation system, its own editor,
+  16 automated test gates — and as of this week, the new skeleton is the one actually
+  driving the game you play.</p>
+  <div class="meta">
+    <span class="tag good"><b>16 / 16</b> test gates green (168 checks)</span>
+    <span class="tag hot"><b>v1.1.0</b> — the rig-v2 release, going out now</span>
+    <span class="tag"><b>164</b> commits since July 8</span>
+    <span class="tag"><b>34</b> puppet parts, <b>13</b> animation clips</span>
+  </div>
+
+  <div class="plain">
+    <span class="lbl">the whole thing in plain words</span>
+    <p><b>What is this?</b> KICK/PUSH is a hand-drawn skateboarding game. You swipe to push,
+    tap to jump, and rack up points doing flips and grinding rails before the clock runs out.
+    It's one single web page — no app store, no install — live at
+    <a href="https://play.usefulpurpose.com">play.usefulpurpose.com</a>.</p>
+    <p><b>What's been happening?</b> The skater's original "skeleton" (the code that bends his
+    arms and legs) grew up fast and got messy. So we wrote a clean blueprint for a better one
+    — <i>Skater-Rig v2</i> — and then built it: new bones, new physics for floppy arms and
+    stretchy legs, a rulebook that makes bad poses impossible, and a new editor to pose him in.
+    That took three long days. This week the new skeleton was wired into the real game, the
+    hand-inked skateboard art came back, and every move — pushing, crouching, ollies,
+    backflips, grinding, landing — now runs on it.</p>
+    <p><b>What's next?</b> Flip the switch so the new version is THE game everyone gets (that's
+    literally in progress right now), then teach the skater more moves — board grabs, idle
+    animations, new tricks — and start building the nine new worlds for the paid version.</p>
+  </div>
+
+  <div class="tldr">
+    <div class="card good"><div class="n">Rig v2 is in the game</div>
+      <p>Not a demo, not a side build — the real game loop drives the new skeleton, verified frame by frame.</p></div>
+    <div class="card warn"><div class="n">The switch is being flipped</div>
+      <p>v1.1.0 makes rig v2 the default build. The old rig stays on disk, buildable, until we delete it on purpose.</p></div>
+    <div class="card info"><div class="n">Next up: more moves</div>
+      <p>The engine is done. What's left is mostly <i>content</i> — poses and cycles from the spec's wish list.</p></div>
+  </div>
+</div></div>
+
+<section id="now"><div class="wrap">
+  <div class="sechead"><span class="num">01</span><h2 class="big">Where the game is at</h2></div>
+  <p class="lead">Short version: the engine work is finished and tested. The game plays on the
+  new rig. The last engineering step — making it the default — is running as this page is
+  being written.</p>
+
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Piece</th><th>State</th><th>What that means</th></tr>
+    <tr><td><b>The live game</b></td><td><span class="badge b-done">live</span></td>
+      <td><a href="https://play.usefulpurpose.com">play.usefulpurpose.com</a> — v1.0.3, still on the old rig until the v1.1.0 push lands. Every push to <code>main</code> auto-deploys through Cloudflare Pages.</td></tr>
+    <tr><td><b>Rig v2 engine</b></td><td><span class="badge b-done">done</span></td>
+      <td>Bones, math, springs, drag, joint limits, pose linter, state graph, speed blending, transitions — all built and guarded by automated tests.</td></tr>
+    <tr><td><b>Game integration</b></td><td><span class="badge b-done">done</span></td>
+      <td>The game loop drives the v2 skeleton through its existing seams. Push, coast, crouch, ollie, backflip, grind, land — all on the new rig. The hand-inked board art is back too.</td></tr>
+    <tr><td><b>The default swap</b></td><td><span class="badge b-now">in flight</span></td>
+      <td>Making <code>npm run build</code> produce the v2 game as <code>dist/index.html</code>, bumping to v1.1.0, and pushing live. The old rig stays buildable behind a <code>--v1</code> flag.</td></tr>
+    <tr><td><b>Skater-Rig editor v2</b></td><td><span class="badge b-done">shipped</span></td>
+      <td>The new posing tool (<code>tools/dev-v2/</code>) — hierarchy, readout, layers, transition preview with lint flags, pose library, state-graph view, air preview.</td></tr>
+    <tr><td><b>More moves (content)</b></td><td><span class="badge b-next">next</span></td>
+      <td>The spec lists ~12 more poses and ~7 more cycles to author. The one visible gap today: board-grab tricks still show the ollie tuck.</td></tr>
+    <tr><td><b>Nine worlds + paid version</b></td><td><span class="badge b-later">planned</span></td>
+      <td>The commercial plan: 9 themed worlds, a two-gate paywall, $4.99 mobile / $8.99 Steam. Needs an art pipeline (<code>svg-to-art.js</code>) and a level registry first.</td></tr>
+  </table></div>
+
+  <div class="callout win"><span class="lbl">the milestone that matters</span>
+  On July 21 the game ran a full session — menu, riding, jumps, flips, rail grinds, landings,
+  even a screen resize — entirely on the new skeleton, with zero errors, 823 frames in a row,
+  checked by a robot so it can never quietly break. That's the moment rig v2 stopped being a
+  project and became the game.</div>
+</div></section>
+
+<section id="story"><div class="wrap">
+  <div class="sechead"><span class="num">02</span><h2 class="big">The story so far — a two-week timeline</h2></div>
+  <p class="lead">Fourteen days, 164 commits. Here's the whole run, stitched together from the
+  changelogs, the work log, and every roadmap page that came before this one.</p>
+
+  <ul class="tl">
+    <li class="big"><span class="dot"></span><span class="when">Jul 8 – 12</span>
+      <h4>The game gets built</h4>
+      <p>KICK/PUSH starts life as one giant hand-inked HTML file (<code>kick-push.html</code>, 1.7&nbsp;MB of game).
+      It then gets restructured properly: small source files under <code>src/</code>, a build script that squeezes
+      everything back into one deployable file, levels, audio, tricks, pickups.</p></li>
+    <li><span class="dot"></span><span class="when">Jul 13</span>
+      <h4>A new rig and a BETA skater</h4>
+      <p>The first big character rebuild — a new-style rig behind a BETA button, posed in a new dev tool
+      that would grow into the Skater-Rig editor.</p></li>
+    <li><span class="dot"></span><span class="when">Jul 14 – 15</span>
+      <h4>Milestones M0–M5, rapid fire</h4>
+      <p>Toes-down feet fix, pose saving, a real pose workflow, animation clips, the in-game clip player,
+      floppy physics arms, and crouch/backflip controls. Five changelogs in two days.</p></li>
+    <li class="win"><span class="dot"></span><span class="when">Jul 16</span>
+      <h4>The animator overhaul</h4>
+      <p>Editor v0.5.0: toolbar tools, bone overlays, key poses, force-hit stars. The riding animation
+      becomes canon — one source file the whole game derives from. First roadmap page ships.</p></li>
+    <li><span class="dot"></span><span class="when">Jul 17</span>
+      <h4>One cycle, one file — enforced</h4>
+      <p>A test gate now fails the build if the riding cycle is ever copy-pasted anywhere. Roadmap v2.</p></li>
+    <li><span class="dot"></span><span class="when">Jul 19</span>
+      <h4>The big Saturday: how riding feels</h4>
+      <p>34 commits. Swipe-rate becomes the throttle (swipe harder = genuinely faster), the four-anchor
+      drive system (Rest/Slow/Coast/Push), side-paint mode for posing, and game v1.0.1. Roadmaps v3–v5
+      and a week-in-review page.</p></li>
+    <li class="win"><span class="dot"></span><span class="when">Jul 20, early</span>
+      <h4>The game turns out to be LIVE</h4>
+      <p>Batch 6 lands (v1.0.2) — and the deploy pipeline is discovered already working: push to GitHub,
+      Cloudflare Pages builds it, <b>play.usefulpurpose.com</b> serves it. Byte-for-byte verified.</p></li>
+    <li><span class="dot"></span><span class="when">Jul 20, morning</span>
+      <h4>Batch 7: triggers become data — v1.0.3 ships</h4>
+      <p>The animation trigger ladder becomes clip data instead of hardcoded if/else, proven identical by
+      a 167,616-case test. v1.0.3 goes live. Roadmaps v7/v8 and the nine-worlds business plan.</p></li>
+    <li class="big"><span class="dot"></span><span class="when">Jul 20, rig-v2 day 1</span>
+      <h4>The spec becomes an engine</h4>
+      <p><code>rig-spec-v2.md</code> goes from paper to running code in one day: the part model, matrix math
+      with the stretch fix, springs and world-space drag, procedural transitions, a state graph, joint
+      limits, a pose linter — plus a brand-new spec-first character (34 parts, fingers included) and the
+      v1 animations migrated onto it. 12 test gates green by midnight.</p></li>
+    <li><span class="dot"></span><span class="when">Jul 21, day 2</span>
+      <h4>Air, the editor, and speed-simplify</h4>
+      <p>The jump arc becomes the animation clock (ollies land their catch frame at any height), winding
+      backflips/frontflips live on the root bone, the full §9 editor ships as Skater-Rig v2, and the
+      lost-inbetweens speed effect gets ported. 15 gates.</p></li>
+    <li class="win"><span class="dot"></span><span class="when">Jul 21, day 3</span>
+      <h4>Game integration + the art pass</h4>
+      <p>The real game loop drives rig v2 through its existing seams — no game code edited. The canonical
+      state graph gets its ground half, board attachment is finally consumed, and the hand-inked v1
+      skateboard is wrapped in as the board art. 16 gates, verified live in the browser.</p></li>
+    <li class="big"><span class="dot"></span><span class="when">Jul 21, tonight</span>
+      <h4>The default swap — v1.1.0</h4>
+      <p>Rig v2 becomes THE game. Old rig stays on disk, buildable behind a flag, until it's retired
+      on purpose. This page is the state of the world as that lands.</p></li>
+  </ul>
+</div></section>
+
+<section id="done"><div class="wrap">
+  <div class="sechead"><span class="num">03</span><h2 class="big">What's completed</h2></div>
+  <p class="lead">Scored against the rig-v2 spec (<code>docs/rig-spec-v2.md</code>), section by section.
+  Everything below is built <i>and</i> guarded by automated tests — 16 gates, 168 individual checks,
+  run on every <code>npm test</code>.</p>
+
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Spec area</th><th>Status</th><th>In one line</th></tr>
+    <tr><td><b>§1–3 Character &amp; hierarchy</b></td><td><span class="badge b-done">done</span></td>
+      <td>34-part spec-first skater (pear body, big hands, fingers), board as a sibling of the hips, all limbs drawn straight-down per the rest-pose rule.</td></tr>
+    <tr><td><b>§4 Data model</b></td><td><span class="badge b-done">done</span></td>
+      <td>Flat part list with stable IDs; poses and cycles are one type (1 key or 8 keys).</td></tr>
+    <tr><td><b>§5 Transform &amp; stretch math</b></td><td><span class="badge b-done">done</span></td>
+      <td>Matrix stack; stretch doesn't inherit (the old knee-gap bug is dead); stretch lives in additive tracks, never in keys.</td></tr>
+    <tr><td><b>§6 Procedural drag</b></td><td><span class="badge b-done">done</span></td>
+      <td>Floppy arms lag in world space, clamp at 60°, die on landing; falling arms stretch overhead.</td></tr>
+    <tr><td><b>§7.1–7.3 Regions, layers, speed blend</b></td><td><span class="badge b-done">done</span></td>
+      <td>Region masks, a weighted layer stack with buried-layer detection, and speed variants that blend instead of switching.</td></tr>
+    <tr><td><b>§8 All eleven guardrails</b></td><td><span class="badge b-done">done</span></td>
+      <td>Joint limits clamped last, shortest-path blending with the winding escape hatch for flips, procedural transitions from the <i>evaluated</i> pose, z-order snapping, the pose linter, the legal-moves state graph, explicit board attachment.</td></tr>
+    <tr><td><b>§9 Editor</b></td><td><span class="badge b-done">shipped</span></td>
+      <td>Hierarchy, scrubbable readout with world values, region toggles, layer panel with per-region burial warnings, read-only transition preview with lint flags, pose library + mirror, state-graph view, air preview.</td></tr>
+    <tr><td><b>§10 Migration</b></td><td><span class="badge b-done">done</span></td>
+      <td>All eight ordered steps executed; every "inconsistency to expect" was found and fixed (several by test gates that now keep them fixed).</td></tr>
+    <tr><td><b>Air system</b></td><td><span class="badge b-done">done</span></td>
+      <td>The jump arc is the animation clock; flips complete their spin by touchdown no matter how short the hop.</td></tr>
+    <tr><td><b>Game integration</b></td><td><span class="badge b-done">done</span></td>
+      <td>The shipped game loop drives all of the above; board/face art pass included.</td></tr>
+  </table></div>
+</div></section>
+
+<section id="todo"><div class="wrap">
+  <div class="sechead"><span class="num">04</span><h2 class="big">What's left to do</h2></div>
+  <p class="lead">The honest list. Nothing here blocks the game — it's ranked by how visible
+  it is to a player.</p>
+
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Item</th><th>Size</th><th>Why it matters</th></tr>
+    <tr><td><b>The default swap</b> <span class="badge b-now">in flight</span></td><td><span class="badge b-s">small</span></td>
+      <td>v1.1.0: rig v2 becomes the shipped game. Happening now.</td></tr>
+    <tr><td><b>Board-grab pose</b></td><td><span class="badge b-s">small</span></td>
+      <td>The one visible regression: double/triple-jump grabs currently hold the ollie tuck. One authored pose + one graph edge fixes it.</td></tr>
+    <tr><td><b>Grind &amp; manual loops</b></td><td><span class="badge b-m">medium</span></td>
+      <td>The spec's own warning: "Grind and Manual need their loops or they look dead as static poses." Grind today matches v1 (a held pose), but a balance-wobble loop would bring the rail alive.</td></tr>
+    <tr><td><b>The §7.4 content batch</b></td><td><span class="badge b-l">large</span></td>
+      <td>~12 poses (tuck, manual, handstand, superman, nose/tail grab, celebrate, brace, fall, getting-up…) and ~7 cycles (riding slow/fast banks, devil hands, tumble, idle variants, walk). Pure authoring in the v2 editor — no engine work.</td></tr>
+    <tr><td><b>Editor niceties</b></td><td><span class="badge b-m">medium</span></td>
+      <td>Live preview (clip looping over scrolling ground), general onion skinning, sprite paint-by-side. Pan/zoom already exists; onion skin exists inside transition preview.</td></tr>
+    <tr><td><b>Force-hit stars port</b></td><td><span class="badge b-m">medium</span></td>
+      <td>v1's trick for making key poses land crisply. Metadata already carried on v2 clips; the pull itself isn't ported yet.</td></tr>
+    <tr><td><b>Ground anchor consumption</b></td><td><span class="badge b-s">small</span></td>
+      <td>Handstand-family poses need the root to sit at the hands, not the feet. The data field exists; nothing reads it yet. Only matters once those poses exist.</td></tr>
+    <tr><td><b>Real face ink</b></td><td><span class="badge b-m">medium</span></td>
+      <td>The face parts (eyes, mouth) are empty sockets waiting for a face-capable head drawing. Needs Minder's pen — the hatched-shades head is the shipped look meanwhile.</td></tr>
+    <tr><td><b>Nine-worlds groundwork</b></td><td><span class="badge b-l">large</span></td>
+      <td>Before world 2 exists: the <code>svg-to-art.js</code> pipeline and a level registry. Then worlds 2–9, the two-gate paywall, Capacitor (mobile, $4.99) and Electron (Steam, $8.99) shells.</td></tr>
+  </table></div>
+</div></section>
+
+<section id="plan"><div class="wrap">
+  <div class="sechead"><span class="num">05</span><h2 class="big">The schedule</h2></div>
+  <p class="lead">Sequenced, not dated — each block is roughly a session or two at the pace of
+  the last two weeks.</p>
+
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Block</th><th>Contents</th><th>Exit test</th></tr>
+    <tr><td class="n">NOW</td>
+      <td><b>Ship v1.1.0</b> — the default swap, gates rewired, pushed live.</td>
+      <td>play.usefulpurpose.com serves the v2 rig; 16 gates green.</td></tr>
+    <tr><td class="n">NEXT</td>
+      <td><b>Polish the visible seams</b> — board-grab pose, grind wobble loop, editor niceties (live preview, onion skin, paint).</td>
+      <td>No move in the game reads worse than it did on the old rig.</td></tr>
+    <tr><td class="n">THEN</td>
+      <td><b>The content batch</b> — work through the §7.4 wish list in the v2 editor; idle variants and celebrate first (most screen time).</td>
+      <td>The state graph has real nodes for every trick the game can trigger.</td></tr>
+    <tr><td class="n">AFTER</td>
+      <td><b>Nine-worlds groundwork</b> — svg-to-art pipeline, level registry, world 2 as the template.</td>
+      <td>A second level loads from data with its own art and palette.</td></tr>
+    <tr><td class="n">LAUNCH&nbsp;ARC</td>
+      <td><b>Worlds 3–9, paywall, ports</b> — content production, the two-gate unlock, Capacitor + Electron builds, store pages.</td>
+      <td>$4.99 on mobile, $8.99 on Steam, one shared codebase.</td></tr>
+  </table></div>
+
+  <div class="callout key"><span class="lbl">the guiding rule</span>
+  Engine work is over unless a gate turns red. Everything from here is content, polish, and
+  packaging — which is exactly where a game wants to be.</div>
+</div></section>
+
+<section id="versions"><div class="wrap">
+  <div class="sechead"><span class="num">06</span><h2 class="big">Version history</h2></div>
+
+  <h3 class="sub3">The game</h3>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Version</th><th>Date</th><th>What shipped</th></tr>
+    <tr><td class="n">v1.0.0</td><td>Jul 19</td><td>The versioned era begins — the game as restructured source with a one-file build.</td></tr>
+    <tr><td class="n">v1.0.1</td><td>Jul 19</td><td>Batch 5: locomotion feel — swipe-rate throttle, cadence-locked pushes.</td></tr>
+    <tr><td class="n">v1.0.2</td><td>Jul 20</td><td>Batch 6: four-anchor drive; first byte-verified LIVE deploy via Cloudflare Pages.</td></tr>
+    <tr><td class="n">v1.0.3</td><td>Jul 20</td><td>Batch 7: animation triggers as data (proved identical across 167,616 cases).</td></tr>
+    <tr><td class="n">v1.1.0</td><td>Jul 21</td><td><b>The rig-v2 release.</b> The new skeleton becomes the shipped game; old rig retired to a build flag.</td></tr>
+  </table></div>
+
+  <h3 class="sub3">The Skater-Rig editor</h3>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Version</th><th>Date</th><th>What shipped</th></tr>
+    <tr><td class="n">v0.4.x</td><td>Jul 14–15</td><td>Pose workflow, clips, saves — the tool becomes a real editor.</td></tr>
+    <tr><td class="n">v0.5.0</td><td>Jul 16</td><td>The animator overhaul: toolbar tools, overlays, key poses, force-hit stars.</td></tr>
+    <tr><td class="n">v0.6.x</td><td>Jul 19–21</td><td>Panel declutter, live preview, pan/zoom, band editing, simplify slider (now v0.6.24).</td></tr>
+    <tr><td class="n">Skater-Rig v2</td><td>Jul 21</td><td>A brand-new editor for the v2 rig (<code>tools/dev-v2/</code>) — versioned separately from day one.</td></tr>
+  </table></div>
+
+  <h3 class="sub3">The test wall</h3>
+  <p>Every green gate is a promise the build keeps automatically: <b>5 gates</b> guarded the v1 game
+  (build, render, single-source cycle, trigger identity, UI inventory) · <b>12</b> by the end of
+  rig-v2 day 1 · <b>15</b> after air + editor + simplify · <b>16</b> with game integration —
+  168 individual checks on every test run.</p>
+</div></section>
+
+<section id="paper"><div class="wrap">
+  <div class="sechead"><span class="num">07</span><h2 class="big">The paper trail</h2></div>
+  <p class="lead">Every HTML report and plan produced along the way — the project documents
+  itself as it goes.</p>
+
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Page</th><th>Date</th><th>What it is</th></tr>
+    <tr><td><b>kick-push.html</b></td><td>Jul 8</td><td>The original: the whole game in one 1.7&nbsp;MB hand-inked file.</td></tr>
+    <tr><td><b>skater-rig-panel-mockup</b></td><td>Jul 14</td><td>Design mockup for the editor's control panel.</td></tr>
+    <tr><td><b>anim-tester-guide</b></td><td>Jul 15</td><td>The editor's user manual.</td></tr>
+    <tr><td><b>about-kick-push</b></td><td>Jul 16</td><td>The game explained — mechanics, art style, architecture.</td></tr>
+    <tr><td><b>skater-rig-roadmap v1–v2</b></td><td>Jul 16–17</td><td>The roadmap series begins: rig plans, batch ledgers.</td></tr>
+    <tr><td><b>week-in-review</b></td><td>Jul 19</td><td>Week one, summarized.</td></tr>
+    <tr><td><b>skater-rig-roadmap v3–v5</b></td><td>Jul 19</td><td>The locomotion Saturday, planned and recorded.</td></tr>
+    <tr><td><b>skater-rig-roadmap v6</b></td><td>Jul 20</td><td>Batch 6 ledger; the deploy discovery.</td></tr>
+    <tr><td><b>batch-7-report + roadmap v7/v8</b></td><td>Jul 20</td><td>Batch 7 ("The Backlog Closes") — triggers as data, v1.0.3.</td></tr>
+    <tr><td><b>kickpush-nine-worlds-plan</b></td><td>Jul 20</td><td>The commercial expansion plan: 9 worlds, pricing, ports, paywall.</td></tr>
+    <tr><td><b>index.html (the hub)</b></td><td>Jul 20</td><td>Project home linking the playable build, both editors, and all docs.</td></tr>
+    <tr><td><b>skater-rig-roadmap v9</b></td><td>Jul 21</td><td>This page — the rig goes live.</td></tr>
+  </table></div>
+
+  <div class="callout info"><span class="lbl">where things live</span>
+  Play the game: <a href="https://play.usefulpurpose.com">play.usefulpurpose.com</a> · Source:
+  <a href="https://github.com/mindersingh/kick-push">github.com/mindersingh/kick-push</a> ·
+  The spec that drove the last three days: <code>docs/rig-spec-v2.md</code> · The running
+  history: <code>docs/worklog.md</code>.</div>
+</div></section>
+
+<footer><div class="wrap">
+  <span class="brand">KICK<span class="slash">/</span>PUSH</span> — Skater-Rig roadmap, ninth edition ·
+  July 21, 2026 · game v1.1.0 · editor v0.6.24 + Skater-Rig v2 · 16 gates / 168 checks green
+</div></footer>
+
+</body>
+</html>
