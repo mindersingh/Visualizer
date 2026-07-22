@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KICK/PUSH — Skater-Rig v2: The Parity Plan v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Londrina+Solid:wght@400;900&family=Inter:wght@400;500;600;700;800&family=Gochi+Hand&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0f1013; --panel:#17181c; --panel2:#1b1c21; --panel3:#212228;
+  --line:#2b2c33; --line2:#34353d;
+  --paper:#ece7dd; --paper-dim:#cfc9bd;
+  --tx:#e4e4ea; --tx-dim:#a6a7b0; --tx-faint:#74757e;
+  --red:#ed1f28; --green:#9ad19a; --amber:#f7b268;
+  --shadow:0 12px 40px -12px rgba(0,0,0,.6);
+  --maxw:1120px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:
+    radial-gradient(1200px 600px at 78% -8%, #23242c 0%, transparent 60%),
+    radial-gradient(900px 500px at 6% 4%, #1e1f26 0%, transparent 55%),
+    var(--ink);
+  color:var(--tx); font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  font-size:16px; line-height:1.62; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+a{color:#8fb8ff; text-decoration:none} a:hover{text-decoration:underline}
+h1,h2,h3,h4{line-height:1.15; margin:0}
+code{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace; font-size:.86em;
+  background:#000; color:#e9d9a8; padding:.08em .42em; border-radius:5px; border:1px solid var(--line)}
+.mut{color:var(--tx-dim)}
+
+.topnav{position:sticky; top:0; z-index:50; background:rgba(15,16,19,.96); border-bottom:1px solid var(--line)}
+.topnav .wrap{display:flex; align-items:center; gap:18px; height:56px}
+.topnav .brand{font-family:"Londrina Solid",sans-serif; font-weight:900; font-size:22px; color:var(--paper); white-space:nowrap}
+.topnav .brand .slash{color:var(--red)}
+.topnav nav{display:flex; gap:4px; margin-left:auto; flex-wrap:wrap; justify-content:flex-end}
+.topnav nav a{color:var(--tx-dim); font-size:12.5px; font-weight:600; padding:6px 10px; border-radius:7px}
+.topnav nav a:hover{color:var(--paper); background:var(--panel3); text-decoration:none}
+.topnav nav a.ext{color:#8fb8ff}
+@media(max-width:700px){.topnav nav a{padding:6px 7px; font-size:11.5px}}
+
+.hero{padding:70px 0 30px}
+.hero .kicker{font-family:"Gochi Hand",cursive; color:var(--red); font-size:22px; transform:rotate(-2deg); display:inline-block; margin-bottom:10px}
+.hero h1{font-family:"Londrina Solid",sans-serif; font-weight:900; font-size:clamp(38px,6vw,72px); color:var(--paper); line-height:.98}
+.hero h1 .slash{color:var(--red)}
+.hero .sub{font-size:19px; color:var(--tx-dim); max-width:840px; margin:20px 0 0}
+.hero .meta{margin-top:26px; display:flex; gap:10px; flex-wrap:wrap; font-size:12.5px}
+.hero .meta .tag{background:var(--panel2); border:1px solid var(--line2); color:var(--tx-dim); padding:5px 12px; border-radius:999px}
+.hero .meta .tag b{color:var(--paper)}
+.hero .meta .tag.good{border-color:#2e5a37; background:#152119} .hero .meta .tag.good b{color:#9ad19a}
+
+.plain{margin:34px 0 0; border:1px solid #2e5a37; border-radius:16px; box-shadow:var(--shadow);
+  background:linear-gradient(180deg,#152119,#141712); padding:26px 26px 20px}
+.plain .lbl{font-family:"Gochi Hand",cursive; font-size:24px; color:var(--green); display:block; margin-bottom:6px}
+.plain p{font-size:16.5px; margin:12px 0}
+.plain b{color:var(--paper)}
+
+.tldr{margin:36px 0 8px; display:grid; grid-template-columns:repeat(3,1fr); gap:16px}
+.tldr .card{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line2);
+  border-radius:14px; padding:20px; box-shadow:var(--shadow)}
+.tldr .card .n{font-family:"Londrina Solid",sans-serif; font-weight:900; font-size:26px; color:var(--paper)}
+.tldr .card p{margin:6px 0 0; font-size:13.5px; color:var(--tx-dim)}
+.tldr .card.good{border-color:#2e5a37} .tldr .card.good .n{color:var(--green)}
+.tldr .card.warn{border-color:#5c4a2a} .tldr .card.warn .n{color:var(--amber)}
+.tldr .card.info{border-color:#2c3f63} .tldr .card.info .n{color:#7fa6ff}
+@media(max-width:900px){.tldr{grid-template-columns:1fr}}
+
+section{padding:44px 0; border-top:1px solid var(--line); scroll-margin-top:74px}
+.sechead{display:flex; align-items:baseline; gap:14px; margin-bottom:8px}
+.sechead .num{font-family:"Londrina Solid",sans-serif; font-weight:900; font-size:20px; color:var(--red)}
+h2.big{font-family:"Londrina Solid",sans-serif; font-weight:900; font-size:clamp(26px,3.6vw,40px); color:var(--paper)}
+.lead{font-size:17.5px; color:var(--tx-dim); max-width:860px; margin:14px 0 26px}
+h3.sub3{font-size:19px; color:var(--paper); margin:34px 0 10px; font-weight:700}
+p{margin:14px 0}
+
+.badge{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
+  padding:3px 9px; border-radius:999px; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap;
+  border:1px solid transparent; vertical-align:middle}
+.b-port{background:#14321f; color:#8bd39a; border-color:#2e6a45}
+.b-have{background:#1d2740; color:#9dbaff; border-color:#33477a}
+.b-skip{background:#3a1e14; color:#f0a487; border-color:#5c3323}
+.b-rethink{background:#3a2f12; color:#f2c877; border-color:#6a5320}
+.b-new{background:#2a1f33; color:#cfa6f0; border-color:#4a3560}
+.b-done{background:#1d4022; color:#b9f0c0; border-color:#3d8a4d}
+.b-s{background:#14321f; color:#8bd39a; border-color:#255a34}
+.b-m{background:#3a2f12; color:#f2c877; border-color:#5c4a1f}
+.b-l{background:#3a1e14; color:#f0a487; border-color:#5c3323}
+
+.callout{border-radius:12px; padding:18px 20px; margin:22px 0; border:1px solid var(--line2); background:var(--panel2)}
+.callout .lbl{font-family:"Gochi Hand",cursive; font-size:19px; margin-bottom:2px; display:block}
+.callout.key{border-color:#5c4a2a; background:linear-gradient(180deg,#241d10,#1b1815)}
+.callout.key .lbl{color:var(--amber)}
+.callout.win{border-color:#2e5a37; background:linear-gradient(180deg,#13251a,#161a16)}
+.callout.win .lbl{color:var(--green)}
+.callout.info{border-color:#2c3f63; background:linear-gradient(180deg,#131a28,#161820)}
+.callout.info .lbl{color:#8fb8ff}
+
+.tbl{width:100%; border-collapse:collapse; margin:18px 0; font-size:13.5px; border:1px solid var(--line2); border-radius:12px; overflow:hidden}
+.tbl th{background:var(--panel3); color:var(--tx-dim); text-align:left; font-weight:700; font-size:11.5px;
+  text-transform:uppercase; letter-spacing:.05em; padding:11px 13px; border-bottom:1px solid var(--line2)}
+.tbl td{padding:12px 13px; border-bottom:1px solid var(--line); vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl td b{color:var(--paper)}
+.tbl td.n{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:12.5px; color:var(--paper); white-space:nowrap}
+.tblwrap{overflow-x:auto}
+
+footer{border-top:1px solid var(--line); padding:34px 0 60px; color:var(--tx-faint); font-size:13px}
+footer .brand{font-family:"Londrina Solid",sans-serif; font-weight:900; color:var(--paper-dim)}
+footer .slash{color:var(--red)}
+</style>
+</head>
+<body>
+
+<div class="topnav"><div class="wrap">
+  <span class="brand">KICK<span class="slash">/</span>PUSH</span>
+  <nav>
+    <a href="#landed">Landed</a><a href="#matrix">Matrix</a><a href="#port">Port</a>
+    <a href="#qol">QoL</a><a href="#order">Order</a>
+    <a href="skater-rig-parity.html">Plan&nbsp;v1</a>
+    <a href="blog/index.html" class="ext">Devlog&nbsp;↗</a>
+  </nav>
+</div></div>
+
+<div class="hero"><div class="wrap">
+  <span class="kicker">updated after the board-pins sprint — july 22, 2026</span>
+  <h1>THE PARITY PLAN<span class="slash">,</span> v3</h1>
+  <p class="sub">The <a href="skater-rig-parity.html">original parity plan</a> was written at
+  noon on July 21. By 9&nbsp;p.m. the same day, eleven commits had taken the v2 editor from
+  v0.1.0 to v0.4.1 — and almost none of them were on the plan. This page scores what actually
+  landed, re-audits the matrix against the editor that exists <i>now</i>, and re-sequences
+  what's left. The full story of every commit is on the
+  <a href="blog/index.html">devlog</a>.</p>
+  <div class="meta">
+    <span class="tag"><b>since plan v1:</b> 11 commits · tester v0.1.0 → v0.4.1</span>
+    <span class="tag"><b>engine fixes shipped:</b> 2 (both in the live game)</span>
+    <span class="tag good"><b>Verdict:</b> the port list survived intact — the sprint built things the plan never listed</span>
+  </div>
+
+  <div class="plain">
+    <span class="lbl">plain words first</span>
+    <p><b>What happened.</b> Instead of porting v1 comforts, the sprint made the v2 editor
+    good at the thing that matters most: <i>posing</i>. Click a limb to select it, swing it
+    without tearing the chain, pin a foot to the deck and pose the hip around it, drag pins
+    on the board itself and let IK glue the hands and feet there live. None of that was in
+    the plan — the plan assumed posing was a solved problem and speed was the gap.</p>
+    <p><b>What it proved.</b> Building the editor found two real engine bugs (channels first
+    keyed mid-cycle were silently dropped — in the tester <i>and</i> the shipped game). The
+    editor is doing its job as the rig's first customer.</p>
+    <p><b>What didn't change.</b> The six-item port list. Live preview, autosave, save-to-repo,
+    onion skin, playback speed, force-hit stars — all still open, all still the right list.
+    And undo is now <i>more</i> urgent, not less: the editor can do much more per minute,
+    which means it can lose much more per mistake.</p>
+  </div>
+
+  <div class="tldr">
+    <div class="card good"><div class="n">Landed: posing power</div>
+      <p>Gizmos, structure lock, foot pins + locks, board pins with live IK glue, a real playhead, the protractor ring, the body blob toggle.</p></div>
+    <div class="card warn"><div class="n">Still open: the port six</div>
+      <p>Live preview, session autosave, save-to-repo, onion skin, playback speed, force-hit stars. Untouched since plan v1.</p></div>
+    <div class="card info"><div class="n">Next: safety, then content</div>
+      <p>Undo/redo and autosave before the §7.4 content batch. The sprint sharpened the knife; don't run with it yet.</p></div>
+  </div>
+</div></div>
+
+<section id="landed"><div class="wrap">
+  <div class="sechead"><span class="num">01</span><h2 class="big">What landed since plan v1</h2></div>
+  <p class="lead">The July 21 evening sprint, commit by commit — grouped by what it did to the
+  editor, the engine, and the character. Every row links to its own story on the
+  <a href="blog/index.html">devlog</a>.</p>
+
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Area</th><th>What landed</th><th>Commits</th></tr>
+    <tr><td class="n">editor · identity</td>
+      <td><b>v1 feel in the light skin</b> — top bar with a live version stamp (<code>tools/dev-v2/version.json</code>, now 0.4.1) and status line, icon toolbar, diamond timeline, then the v1 pill scrubber on its own line with 1-based key labels. The "which build am I looking at" stamp from plan v1's QoL list is <span class="badge b-done">done</span> for the v2 tester.</td>
+      <td class="n">6aea71a · 111b742 · 8f64203</td></tr>
+    <tr><td class="n">editor · selection</td>
+      <td><b>Click-a-limb</b> — sprite-rect + pixel-alpha picking, hover highlights, dim-others selection; rotate ring with v1's vertical drag, now a <b>protractor</b>: 30°/90° ticks, joint limits drawn as allowed/forbidden arcs with red end-stops.</td>
+      <td class="n">6aea71a · 8f64203</td></tr>
+    <tr><td class="n">editor · posing</td>
+      <td><b>Structure lock</b> (offsets are sockets — limbs swing, chains never tear), <b>foot pins</b> (2-bone IK bakes rotation keys so a pinned foot stays put while you pose the hip), then <b>stretch-aware foot locks</b> solving every key's leg with per-key effective lengths (between-key drift ≤5.4u).</td>
+      <td class="n">74cd45c · 111b742 · 8f64203</td></tr>
+    <tr><td class="n">editor · timeline</td>
+      <td><b>A real playhead</b> — draggable, and the edited key always follows it: starting any edit snaps the playhead onto the nearest key first, so the pose you see is the key you write.</td>
+      <td class="n">4de7b82</td></tr>
+    <tr><td class="n">editor · board pins</td>
+      <td><b>BOARD PINS</b> — draggable null objects on the deck with a feet/hands attach dropdown; the limb is IK-glued live every drawn frame after springs (0.000u over 240 phases), red when unreachable; bake→keys writes the 8-key approximation for export. This resolves plan v1's GLUE-editing "rethink" — see §02.</td>
+      <td class="n">99283ab</td></tr>
+    <tr><td class="n">engine · correctness</td>
+      <td><b>Two sparse-keying fixes</b> — <code>sampleStretchTrack</code> and <code>sampleClip</code> both sampled only frame/key 0's part set, silently dropping channels first authored mid-cycle (push's left-leg squash; a finger posed on one key) in the tester <i>and the shipped game</i>. Both now take the union across all frames/keys; dense clips sample bit-identically; 16 gates stayed green.</td>
+      <td class="n">746ceef · 243cfdb</td></tr>
+    <tr><td class="n">character</td>
+      <td><b>Profile hands</b> (knuckles no longer mirror per side, both thumbs hang forward) and <b>THE BODY BLOB</b> — a torso+hip unifying ink shape whose six anchors ride the frames in <code>skater.json</code>, drawn as a closed quadratic B-spline (midpoint method) so the outline never pinches through its magnet points. <code>game.js</code> draws it under the hip sprite; the tester gets a persisted 3-state toggle (solid / faded-red-behind / off).</td>
+      <td class="n">f0aa3ae · 17ce7f5 · 9868655</td></tr>
+    <tr><td class="n">workflow</td>
+      <td><b>The devlog exists</b> — <code>tools/blog/build-blog.js</code> (zero-dep, idempotent) renders every root/docs report and markdown into <code>blog/</code>: ~50 posts, an index, and a sidebar that rides along on every page. This page is on it. Plan v1's "handoff docs that show the work" idea, delivered early.</td>
+      <td class="n">uncommitted</td></tr>
+  </table></div>
+
+  <div class="callout key"><span class="lbl">the honest score</span>
+  Plan v1 said: port six things, then add undo. The sprint did <b>neither</b> — and was right
+  to. It built posing ergonomics the plan under-scoped because the plan graded the editor on
+  v1's rubric (comforts around a working tool) when the real gap was the tool itself. The
+  lesson for v3: the port list is still correct, but it's <i>batch two</i>. Posing came first
+  because posing is what the §7.4 content batch actually is.</div>
+</div></section>
+
+<section id="matrix"><div class="wrap">
+  <div class="sechead"><span class="num">02</span><h2 class="big">The matrix, re-audited</h2></div>
+  <p class="lead">Same rows as plan v1, scored against the editor that exists today. New badge:
+  <span class="badge b-done">landed</span>. The calls that changed are called out; everything
+  else is confirmed, not repeated.</p>
+
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>v1 feature</th><th>Plan v1's call</th><th>Where it stands, July 22</th></tr>
+    <tr><td><b>Live preview</b> — clip looping over scrolling ground</td>
+      <td><span class="badge b-port">port</span></td>
+      <td>Still open. Board pins made it more valuable: watching a pinned push cycle over
+      scrolling ground is the real review. Note the editor now loads PAUSED — the preview
+      should respect that.</td></tr>
+    <tr><td><b>Onion skinning</b></td>
+      <td><span class="badge b-port">port</span></td>
+      <td>Still open. The playhead-follows-edit model gives it a natural home: ghost the keys
+      on either side of the playhead.</td></tr>
+    <tr><td><b>Save to repo / Load from repo</b></td>
+      <td><span class="badge b-port">port</span></td>
+      <td>Still open, and now the biggest gap — board-pin bakes and blob toggles are producing
+      real content that only exists in a clipboard.</td></tr>
+    <tr><td><b>Session autosave</b></td>
+      <td><span class="badge b-port">port</span></td>
+      <td>Still open. Urgency <i>up</i>: a session now carries pins, locks, and baked keys.</td></tr>
+    <tr><td><b>Playback speed slider</b></td>
+      <td><span class="badge b-port">port</span></td>
+      <td>Still open. Trivial then, trivial now.</td></tr>
+    <tr><td><b>Force-hit stars</b></td>
+      <td><span class="badge b-port">port</span></td>
+      <td>Still open — but stretch-aware locks and star pulls both fight for the same frames.
+      Implement stars <i>after</i> locks are proven in a shipped clip, so the two don't tune
+      against each other blind.</td></tr>
+    <tr><td><b>Bones overlay + select/move/rotate tools</b></td>
+      <td><span class="badge b-have">already in v2</span></td>
+      <td><span class="badge b-done">landed</span>, and past parity: click-a-limb picking,
+      protractor limits, structure lock, dim-others. v1 never had any of these.</td></tr>
+    <tr><td><b>GLUE editing</b> (hand-tuned foot/hand anchors per key)</td>
+      <td><span class="badge b-skip">leave out</span> — "don't build UI for a channel the
+      runtime is moving away from"</td>
+      <td><span class="badge b-done">landed — as something better.</span> Board pins are v1's
+      padlock model reborn v2-native: live IK glue instead of authored anchor channels, with
+      bake→keys only at export. The need was real; the v1 shape wasn't. Plan v1 got the call
+      half right.</td></tr>
+    <tr><td><b>Build stamp on the testers</b> (QoL list)</td>
+      <td><span class="badge b-new">new</span></td>
+      <td><span class="badge b-done">landed</span> for the v2 tester (version + live status in
+      the top bar). The v1 tester keeps its existing version label — good enough.</td></tr>
+    <tr><td><b>Phone / aspect preview</b> · <b>curve editing</b> · <b>UI-inventory gate</b></td>
+      <td><span class="badge b-rethink">rethink</span> / wait</td>
+      <td>Unchanged. The UI-inventory gate's moment is approaching though — v0.1→v0.4 added
+      dozens of controls in a day, exactly the churn the gate exists to protect.</td></tr>
+    <tr><td><b>Paint mode · drive bands · pose stamps · slider wall · BETA plumbing</b></td>
+      <td><span class="badge b-skip">leave out</span></td>
+      <td>Confirmed. Nothing in the sprint missed them.</td></tr>
+  </table></div>
+</div></section>
+
+<section id="port"><div class="wrap">
+  <div class="sechead"><span class="num">03</span><h2 class="big">The port list, re-ordered</h2></div>
+  <p class="lead">Same six features as plan v1 — the sprint validated the list by not making
+  any of it unnecessary. What changed is the order: safety first, because the editor is now
+  powerful enough to lose real work.</p>
+
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>#</th><th>Feature</th><th>Size</th><th>What changed since plan v1</th></tr>
+    <tr><td class="n">1</td><td><b>Session autosave</b></td><td><span class="badge b-s">small</span></td>
+      <td>Was #2. A session now includes pins, locks, and bakes — snapshot the whole editing
+      state, not just the clip JSON.</td></tr>
+    <tr><td class="n">2</td><td><b>Undo / redo</b> (from the QoL list, promoted)</td><td><span class="badge b-m">medium</span></td>
+      <td>Board pins bake rotation keys across all eight keys in one action. One wrong bake
+      with no undo = re-posing a cycle. This ships with, not after, autosave.</td></tr>
+    <tr><td class="n">3</td><td><b>Save to repo, v2-native</b></td><td><span class="badge b-s">small</span></td>
+      <td><code>POST /api/save-clip-v2</code> → <code>tools/dev-v2/clips/&lt;name&gt;.json</code>,
+      server-side <code>lintClip</code>. Unchanged, but now blocking real output.</td></tr>
+    <tr><td class="n">4</td><td><b>Live preview</b></td><td><span class="badge b-m">medium</span></td>
+      <td>Ground-scroll toggle + cadence knob, respecting the loads-paused default. Pins stay
+      glued during preview — that's the whole demo.</td></tr>
+    <tr><td class="n">5</td><td><b>Onion skin + playback speed</b></td><td><span class="badge b-s">small</span></td>
+      <td>Bundled — both are one-evening features hanging off the playhead.</td></tr>
+    <tr><td class="n">6</td><td><b>Force-hit stars</b></td><td><span class="badge b-m">medium</span></td>
+      <td>After a shipped clip uses stretch-aware locks. The push foot-plant is still the
+      likely first customer.</td></tr>
+  </table></div>
+</div></section>
+
+<section id="qol"><div class="wrap">
+  <div class="sechead"><span class="num">04</span><h2 class="big">QoL: done, promoted, and still waiting</h2></div>
+  <p class="lead">Plan v1's quality-of-life list, one day later.</p>
+
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Item</th><th>Status</th><th>Notes</th></tr>
+    <tr><td><b>Build stamp on the testers</b></td><td><span class="badge b-done">landed</span></td>
+      <td>v2 tester top bar: version + live status. Screenshots are self-identifying now.</td></tr>
+    <tr><td><b>Undo / redo</b></td><td><span class="badge b-new">promoted</span></td>
+      <td>Moved into the port list at #2 — see §03.</td></tr>
+    <tr><td><b>Keyboard map overlay</b></td><td>open</td>
+      <td>More shortcuts exist now than when plan v1 asked for this. Press-<code>?</code> is
+      still the answer.</td></tr>
+    <tr><td><b>Copy/paste pose · duplicate clip</b></td><td>open</td>
+      <td>Unchanged — still the §7.4 accelerant.</td></tr>
+    <tr><td><b>Feel-knobs panel · diff-before-export</b></td><td>open</td>
+      <td>Diff-before-export got more valuable: a bake touches every key, and the diff is how
+      you check it only touched the leg you pinned.</td></tr>
+    <tr><td><b>Release script · gate timings · content lint on save</b></td><td>open</td>
+      <td>Unchanged. Lint-on-save lands with port #3.</td></tr>
+    <tr><td><b>Handoff docs that show the work</b></td><td><span class="badge b-done">landed early</span></td>
+      <td>The <a href="blog/index.html">devlog</a>: ~50 posts generated from the repo's own
+      reports and markdown by <code>tools/blog/build-blog.js</code>. GIF export remains the
+      motion half of this idea.</td></tr>
+  </table></div>
+</div></section>
+
+<section id="order"><div class="wrap">
+  <div class="sechead"><span class="num">05</span><h2 class="big">The order, v3</h2></div>
+  <p class="lead">Plan v1's batch A–E, rebuilt around one fact: the sprint already delivered
+  a batch nobody planned — call it batch&nbsp;Ø, posing power — and it came first because it
+  was right to. The rule stands: everything that speeds up the §7.4 content batch comes
+  before everything that doesn't.</p>
+
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Batch</th><th>Contents</th><th>Exit test</th></tr>
+    <tr><td class="n">Ø — posing <span class="badge b-done">landed</span></td>
+      <td>Gizmos · structure lock · foot pins/locks · board pins · playhead · protractor ·
+      body blob toggle · two engine sampling fixes</td>
+      <td>Pose a full key with the mouse only, feet glued to the deck, without tearing a
+      chain. <b>Passes today.</b></td></tr>
+    <tr><td class="n">A — safety</td>
+      <td>Session autosave · undo/redo · save-to-repo v2 endpoint (with server-side lint)</td>
+      <td>Kill the tab mid-edit with three pins set, reopen, keep working. Bake, regret it,
+      Cmd-Z. Save twenty clips without touching a clipboard.</td></tr>
+    <tr><td class="n">B — review</td>
+      <td>Live preview · onion skin · playback speed · copy/paste pose · duplicate clip</td>
+      <td>Author one brand-new 8-key cycle start-to-finish without leaving the editor or
+      squinting.</td></tr>
+    <tr><td class="n">C — content</td>
+      <td>The §7.4 batch itself: boardgrab first, then grind wobble, idles, celebrate, the rest</td>
+      <td>Every trick the game can trigger has a real pose; the graph has no placeholder
+      nodes.</td></tr>
+    <tr><td class="n">D — feel</td>
+      <td>Force-hit stars · feel-knobs panel · diff-before-export</td>
+      <td>The push foot-plant visibly snaps; tuning a spring doesn't require editing source.</td></tr>
+    <tr><td class="n">E — polish</td>
+      <td>GIF export · phone hand-off · release script · gate timings · UI-inventory gate for v2</td>
+      <td>A clip review happens on a phone; a release is one command plus a deliberate push.</td></tr>
+  </table></div>
+
+  <div class="callout info"><span class="lbl">what parity means, v3 edition</span>
+  Plan v1 said parity ends with half of v1's control count and all of its speed. One day
+  later the v2 editor already does things v1 never could — live IK glue, joint-limit
+  protractors, structure that can't tear. The target moves accordingly: parity isn't the
+  finish line anymore, it's the floor. The measure of success is unchanged and now closer:
+  <b>the next twenty clips get authored faster than the last twenty were.</b></div>
+</div></section>
+
+<footer><div class="wrap">
+  <span class="brand">KICK<span class="slash">/</span>PUSH</span> — Skater-Rig v2 parity plan, v3 ·
+  July 22, 2026 · supersedes <a href="skater-rig-parity.html">plan v1</a> ·
+  companion to <a href="https://usefulpurpose.com/skater-rig-roadmap-v9.html">roadmap v9</a> ·
+  <a href="blog/index.html">the devlog</a>
+</div></footer>
+
+<!-- KP-BLOG-NAV --><script src="blog/nav.js" defer></script><!-- /KP-BLOG-NAV -->
+</body>
+</html>
